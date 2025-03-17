@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Use WebSocket (ws library) for all real-time communication. Send minimal data packets (e.g., { id, x, y, rotation }) at 20-30 updates/sec to balance latency and bandwidth. Implement client-side prediction for vehicle movement and server reconciliation to correct drift. Handle disconnects gracefully with a timeout of 5 seconds before removing players. Log packet loss or latency issues for debugging.
+@file: networking-guide.md (reference a detailed networking doc if available)

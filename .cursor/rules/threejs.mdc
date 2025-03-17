@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+When working with Three.js, reuse geometries and materials where possible to minimize memory usage (e.g., shared road textures). Use requestAnimationFrame for the render loop. Keep scene object counts low (e.g., limit to 1000 active objects) and implement frustum culling for off-screen objects. Log performance metrics (e.g., FPS) during development.

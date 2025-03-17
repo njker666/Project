@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Organize code into folders: /client (rendering, UI), /server (networking, game state), /shared (constants, utilities). Use ES6 modules (import/export) for all files. Keep functions small (< 20 lines) and single-purpose. Reference shared constants (e.g., MAX_PLAYERS = 32) in a /shared/config.js file.

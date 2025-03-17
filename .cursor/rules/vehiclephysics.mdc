@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Model vehicle physics with basic forces (acceleration, friction, steering angle) applied to Three.js objects. Use delta time (from requestAnimationFrame) for smooth movement across frame rates. Limit top speeds realistically (e.g., car: 120 mph, truck: 80 mph). Avoid complex physics libraries; keep it custom and simple.

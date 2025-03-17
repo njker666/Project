@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Use modern ES6+ syntax (e.g., const/let instead of var, arrow functions where appropriate). Favor concise, readable code with clear variable names reflecting game entities (e.g., `playerVehicle`, `trafficLightState`). Include JSDoc comments for all major functions (e.g., /** @param {number} speed - Vehicle speed in mph */).

@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Structure server code with separate modules for game state (e.g., players, traffic), WebSocket handling, and Express routes. Keep game logic deterministic (e.g., fixed tick rate of 30 Hz). Avoid blocking operations; use async/await for I/O tasks. Restart the server gracefully on unhandled errors with a basic crash recovery log.

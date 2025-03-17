@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Implement traffic AI with a finite state machine (e.g., states: moving, stopped, turning). Sync traffic light states across all clients via WebSocket every 2 seconds or on change. Use simple pathfinding (e.g., predefined lanes) rather than complex algorithms like A* to keep it lightweight. Cap active traffic vehicles at 50 per player viewport.

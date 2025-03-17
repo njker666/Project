@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+Include console.log or a custom logger for key events (e.g., player join, network error, FPS drop). Tag logs with module names (e.g., [NETWORK], [RENDER]). Disable verbose logging in production builds using a global flag (e.g., `const isDebug = false`).
