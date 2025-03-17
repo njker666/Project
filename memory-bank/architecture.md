@@ -12,6 +12,7 @@ urban-drive/ - Main project directory
 │   │   └── scene.js - Core Three.js scene implementation
 │   ├── ui/ - User interface components
 │   ├── physics/ - Vehicle physics and collision detection
+│   ├── controls.js - Keyboard input handling
 │   ├── index.html - Main HTML entry point
 │   └── index.js - JavaScript entry point
 ├── server/ - Back-end code
@@ -30,8 +31,9 @@ urban-drive/ - Main project directory
   - **scene.js** - Implements a Scene class that encapsulates Three.js functionality including camera, renderer, lights, and the ground plane. Manages the render loop and performance monitoring.
 - **ui/** - Responsible for user interface elements such as speedometer, mini-map, and menu systems. These components provide feedback to the player and allow interaction with game systems.
 - **physics/** - Implements vehicle physics using Oimo.js, including acceleration, steering, collision detection, and other physical interactions in the game world.
-- **index.html** - The main HTML file that creates the canvas element, loads the Three.js library via import maps, and initializes the JavaScript entry point.
-- **index.js** - The entry point for client-side JavaScript that creates an instance of the Scene class and starts the animation loop.
+- **controls.js** - Manages keyboard input through a Controls class that tracks key states and provides an update interface for the game loop. Supports arrow keys, WASD, spacebar, and additional function keys.
+- **index.html** - The main HTML file that creates the canvas element, loads the Three.js library via import maps, and includes UI elements for control state visualization.
+- **index.js** - The entry point for client-side JavaScript that creates instances of the Scene and Controls classes, updates visual indicators, and manages the game loop.
 
 ### Server Directory
 - **network/** - Handles the WebSocket connections, player synchronization, and message passing between the server and connected clients. This ensures all players see a consistent game state.
@@ -58,6 +60,27 @@ This modular approach allows for clean separation between:
 - User interface (client/ui/)
 - Physics (client/physics/)
 
+## Input System
+The input system is managed through the Controls class that:
+1. Sets up event listeners for keyboard input (keydown/keyup)
+2. Tracks the state of control keys (arrows, WASD, spacebar, etc.)
+3. Provides an update method that returns the current control state
+4. Logs control state changes for debugging purposes
+5. Supports both arrow keys and WASD for movement controls
+
+The control state is used by:
+- Visual indicators in the UI to show active controls
+- The vehicle physics system (in future steps) to control movement
+- The network system (in future steps) to send player inputs to the server
+
+## Game Loop Architecture
+The game uses two synchronized loops:
+1. **Rendering Loop**: Managed by the Scene class, responsible for updating and rendering the 3D scene
+2. **Game Loop**: Managed in index.js, responsible for:
+   - Processing user input through the Controls class
+   - Updating visual indicators
+   - Will handle vehicle physics and game logic in future steps
+
 ## Communication Flow
 1. Client inputs are captured and processed locally for immediate feedback
 2. Physics updates are calculated on the client for prediction
@@ -77,6 +100,7 @@ This modular approach allows for clean separation between:
 - **Server Authority**: Server maintains the "source of truth" for game state
 - **Shared Constants**: Configuration values in shared/config.js ensure consistency between client and server
 - **Class-Based Architecture**: Using ES6 classes for better organization and encapsulation
+- **Responsive Design**: The canvas and UI adjust to window size changes
 
 ## Performance Considerations
 - Target frame rate: 30+ FPS
@@ -84,6 +108,7 @@ This modular approach allows for clean separation between:
 - Efficient use of Three.js rendering capabilities
 - Physics optimizations through Oimo.js
 - FPS monitoring to ensure performance targets are met
+- Throttled logging to avoid performance impacts from console output
 
 ## Future Extensibility
 The architecture is designed to allow for future additions such as:
@@ -91,3 +116,4 @@ The architecture is designed to allow for future additions such as:
 - Advanced traffic AI
 - Additional gameplay modes (missions, challenges)
 - Weather effects and day/night cycles
+- Support for additional input methods (gamepads, touch controls)

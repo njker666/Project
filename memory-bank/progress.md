@@ -91,6 +91,35 @@ Date: [Current Date]
 - Checked that the FPS counter maintains at least 30 FPS
 - Tested window resizing to ensure the scene remains responsive
 
+## Step 4: Basic Keyboard Controls Implementation (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Created a `controls.js` file in the client directory
+- Implemented a Controls class to handle keyboard input
+- Set up event listeners for keydown and keyup events
+- Added support for the following controls:
+  - Arrow keys and WASD for movement (up/down/left/right)
+  - Spacebar for handbrake
+  - Additional keys for horn (H), camera toggle (C), and indicators (Q, E)
+- Implemented console logging of control state with throttling to avoid spam
+- Added visual UI indicators to display current control state on screen
+- Updated index.js to use the Controls class and update visual indicators
+- Integrated controls with the game loop
+
+### Challenges and Solutions:
+- Implemented throttling for console logs to prevent console spam
+- Added visual indicators for control state for easier testing
+- Designed the Controls class to be extensible for future input methods
+- Organized code with a proper class structure and encapsulation
+
+### Validation:
+- Verified that all control keys are detected correctly
+- Confirmed console logs show the current control state
+- Tested visual indicators to ensure they reflect the current control state
+- Checked that both arrow keys and WASD work for movement controls
+
 ### Next Steps:
-- Proceed to Step 4: Implement basic keyboard controls
-- Begin handling user input for vehicle movement
+- Proceed to Step 5: Add a simple player vehicle with Oimo.js physics
+- Implement a vehicle that responds to the keyboard controls
