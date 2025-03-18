@@ -32,6 +32,12 @@ class Scene {
     this.lastTime = performance.now();
     this.frameCount = 0;
     this.fpsElement = document.getElementById('fps-counter');
+    
+    // Camera follow properties
+    this.cameraHeight = 4; // Camera height above car
+    this.cameraDistance = 12; // Camera distance behind car
+    this.cameraLerpFactor = 0.05; // Slower camera movement for stability
+    this.lastCameraPosition = new THREE.Vector3(); // Last camera position for smoothing
   }
   
   // Initialize the Three.js scene
@@ -109,9 +115,27 @@ class Scene {
     this.renderer.setSize(width, height);
   }
   
+  // Get the Three.js scene object
+  getScene() {
+    return this.scene;
+  }
+  
+  // Get the Three.js camera object
+  getCamera() {
+    return this.camera;
+  }
+  
+  // Add an object to follow with the camera
+  setCameraTarget(target) {
+    this.cameraTarget = target;
+  }
+  
   // Animation loop
-  animate() {
+  animate(time) {
     requestAnimationFrame(this.animate.bind(this));
+    
+    // Calculate delta time for smooth animations
+    const deltaTime = time - this.lastTime;
     
     // Update FPS counter
     this.frameCount++;
@@ -127,13 +151,56 @@ class Scene {
       this.lastTime = currentTime;
     }
     
+    // Update camera position to follow target if available
+    if (this.cameraTarget && this.cameraTarget.vehicleGroup) {
+      // Get target position and rotation
+      const targetPosition = this.cameraTarget.vehicleGroup.position;
+      const targetRotation = this.cameraTarget.state.rotation;
+      
+      // First, directly position the camera based on car's position and rotation
+      // Convert car direction to a unit vector
+      const directionVector = new THREE.Vector3(
+        -Math.sin(targetRotation), // Negative to position camera BEHIND car
+        0,
+        -Math.cos(targetRotation)  // Negative to position camera BEHIND car
+      );
+      
+      // Calculate ideal camera position
+      const idealCameraPosition = new THREE.Vector3(
+        targetPosition.x + (directionVector.x * this.cameraDistance),
+        targetPosition.y + this.cameraHeight,
+        targetPosition.z + (directionVector.z * this.cameraDistance)
+      );
+      
+      // If this is the first frame, snap camera to position
+      if (this.lastCameraPosition.lengthSq() === 0) {
+        this.lastCameraPosition.copy(idealCameraPosition);
+        this.camera.position.copy(idealCameraPosition);
+      } else {
+        // Smoothly move current camera position toward ideal position
+        this.camera.position.lerp(idealCameraPosition, this.cameraLerpFactor);
+        this.lastCameraPosition.copy(this.camera.position);
+      }
+      
+      // Look at a point slightly above the car
+      const lookTarget = new THREE.Vector3(
+        targetPosition.x,
+        targetPosition.y + 1, // Look slightly above vehicle
+        targetPosition.z
+      );
+      
+      this.camera.lookAt(lookTarget);
+    }
+    
     // Render the scene
     this.renderer.render(this.scene, this.camera);
+    
+    return deltaTime;
   }
   
   // Start the animation loop
   start() {
-    this.animate();
+    this.animate(performance.now());
   }
 }
 

@@ -120,6 +120,41 @@ Date: [Current Date]
 - Tested visual indicators to ensure they reflect the current control state
 - Checked that both arrow keys and WASD work for movement controls
 
+## Step 5: Simple Player Vehicle with Physics (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Created a `vehicle.js` file in the `client/physics` directory
+- Implemented a Vehicle class with Three.js and Oimo.js integration
+- Created a visually appealing vehicle model with:
+  - Main car body with slightly rounded edges
+  - Four wheels positioned at the corners
+  - Windshield with transparent material
+  - Headlights with emissive material
+- Implemented physics-based vehicle movement:
+  - Acceleration and braking with realistic parameters
+  - Steering that accounts for vehicle speed
+  - Handbrake functionality with drift effects
+  - Wheel rotation based on vehicle speed
+- Added camera follow functionality to track the vehicle
+- Created a speed display indicator that changes color based on speed
+- Updated the Scene class to support camera targeting
+- Added ES module wrapper for Oimo.js to support imports
+
+### Challenges and Solutions:
+- Implemented custom physics model using Oimo.js
+- Created smooth camera following with position interpolation
+- Balanced vehicle physics parameters for responsive but realistic controls
+- Added the necessary CDN and module wrapper for Oimo.js
+
+### Validation:
+- Verified that the vehicle appears on the ground plane
+- Confirmed that the vehicle responds to keyboard controls
+- Tested acceleration, braking, and steering with physics-based movement
+- Verified that the camera follows the vehicle smoothly
+- Checked that the speed display updates correctly and changes color
+
 ### Next Steps:
-- Proceed to Step 5: Add a simple player vehicle with Oimo.js physics
-- Implement a vehicle that responds to the keyboard controls
+- Proceed to Step 6: Create a diverse city layout with districts
+- Implement multiple distinct areas with different building types

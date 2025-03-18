@@ -12,7 +12,9 @@ urban-drive/ - Main project directory
 │   │   └── scene.js - Core Three.js scene implementation
 │   ├── ui/ - User interface components
 │   ├── physics/ - Vehicle physics and collision detection
+│   │   └── vehicle.js - Vehicle implementation with Oimo.js physics
 │   ├── controls.js - Keyboard input handling
+│   ├── oimo.module.js - ES module wrapper for Oimo.js
 │   ├── index.html - Main HTML entry point
 │   └── index.js - JavaScript entry point
 ├── server/ - Back-end code
@@ -28,12 +30,14 @@ urban-drive/ - Main project directory
 
 ### Client Directory
 - **rendering/** - Contains files that handle the Three.js scene setup, camera configuration, lighting, and rendering of the 3D world. This is where the visual representation of the game is managed.
-  - **scene.js** - Implements a Scene class that encapsulates Three.js functionality including camera, renderer, lights, and the ground plane. Manages the render loop and performance monitoring.
+  - **scene.js** - Implements a Scene class that encapsulates Three.js functionality including camera, renderer, lights, and the ground plane. Manages the render loop, performance monitoring, and camera following for vehicles.
 - **ui/** - Responsible for user interface elements such as speedometer, mini-map, and menu systems. These components provide feedback to the player and allow interaction with game systems.
 - **physics/** - Implements vehicle physics using Oimo.js, including acceleration, steering, collision detection, and other physical interactions in the game world.
+  - **vehicle.js** - Defines the Vehicle class that manages the player's car using Oimo.js physics. Handles vehicle mesh creation, physics simulation, and movement in response to controls.
 - **controls.js** - Manages keyboard input through a Controls class that tracks key states and provides an update interface for the game loop. Supports arrow keys, WASD, spacebar, and additional function keys.
-- **index.html** - The main HTML file that creates the canvas element, loads the Three.js library via import maps, and includes UI elements for control state visualization.
-- **index.js** - The entry point for client-side JavaScript that creates instances of the Scene and Controls classes, updates visual indicators, and manages the game loop.
+- **oimo.module.js** - Provides an ES module wrapper around the global Oimo.js physics library to support imports in other files.
+- **index.html** - The main HTML file that creates the canvas element, loads the Three.js and Oimo.js libraries, and includes UI elements for control state visualization.
+- **index.js** - The entry point for client-side JavaScript that creates instances of the Scene, Controls, and Vehicle classes, updates visual indicators, and manages the game loop.
 
 ### Server Directory
 - **network/** - Handles the WebSocket connections, player synchronization, and message passing between the server and connected clients. This ensures all players see a consistent game state.
@@ -53,12 +57,30 @@ The rendering system is built around a central Scene class that:
 3. Provides a responsive canvas that adjusts to window size
 4. Implements the animation loop with performance monitoring
 5. Offers methods for adding and manipulating 3D objects
+6. Supports camera targeting and following for vehicles
 
 This modular approach allows for clean separation between:
 - Scene management (rendering/scene.js)
 - Game logic (client/index.js)
 - User interface (client/ui/)
 - Physics (client/physics/)
+
+## Physics System
+The physics system is centered around the Vehicle class and Oimo.js:
+1. Creates a physical representation of the vehicle using Oimo.js bodies
+2. Applies forces based on control inputs (acceleration, braking, steering)
+3. Updates the visual representation to match the physics state
+4. Simulates realistic vehicle behavior including:
+   - Variable steering sensitivity based on speed
+   - Friction and damping for natural movement
+   - Handbrake effects including drifting
+   - Realistic acceleration and braking
+
+The physics implementation balances realism with fun gameplay, providing:
+- Responsive controls for an enjoyable driving experience
+- Enough physical realism to create immersion
+- Proper wheel rotation animations synchronized with vehicle speed
+- A standalone physics world for each vehicle to simplify implementation
 
 ## Input System
 The input system is managed through the Controls class that:
@@ -70,16 +92,29 @@ The input system is managed through the Controls class that:
 
 The control state is used by:
 - Visual indicators in the UI to show active controls
-- The vehicle physics system (in future steps) to control movement
+- The vehicle physics system to control movement
 - The network system (in future steps) to send player inputs to the server
 
 ## Game Loop Architecture
 The game uses two synchronized loops:
-1. **Rendering Loop**: Managed by the Scene class, responsible for updating and rendering the 3D scene
+1. **Rendering Loop**: Managed by the Scene class, responsible for:
+   - Updating and rendering the 3D scene
+   - Calculating FPS for performance monitoring
+   - Moving the camera to follow the vehicle
+   - Returning delta time for animation consistency
+
 2. **Game Loop**: Managed in index.js, responsible for:
    - Processing user input through the Controls class
-   - Updating visual indicators
-   - Will handle vehicle physics and game logic in future steps
+   - Updating vehicle physics with the current control state
+   - Updating visual indicators and UI elements
+   - Ensuring consistent timing using delta time
+
+## Camera System
+The camera system provides a dynamic view of the game world:
+1. Follows the player's vehicle from behind and slightly above
+2. Smoothly interpolates to new positions for fluid movement
+3. Rotates to match the vehicle's direction
+4. Maintains an appropriate distance to show the surrounding environment
 
 ## Communication Flow
 1. Client inputs are captured and processed locally for immediate feedback
@@ -101,6 +136,7 @@ The game uses two synchronized loops:
 - **Shared Constants**: Configuration values in shared/config.js ensure consistency between client and server
 - **Class-Based Architecture**: Using ES6 classes for better organization and encapsulation
 - **Responsive Design**: The canvas and UI adjust to window size changes
+- **Physics-Based Movement**: Vehicle control uses physics simulation for realistic behavior
 
 ## Performance Considerations
 - Target frame rate: 30+ FPS
@@ -109,6 +145,7 @@ The game uses two synchronized loops:
 - Physics optimizations through Oimo.js
 - FPS monitoring to ensure performance targets are met
 - Throttled logging to avoid performance impacts from console output
+- Simplified physics calculations for improved performance
 
 ## Future Extensibility
 The architecture is designed to allow for future additions such as:
@@ -117,3 +154,4 @@ The architecture is designed to allow for future additions such as:
 - Additional gameplay modes (missions, challenges)
 - Weather effects and day/night cycles
 - Support for additional input methods (gamepads, touch controls)
+- More vehicle types with different physics characteristics
