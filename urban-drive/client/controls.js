@@ -77,7 +77,7 @@ class Controls {
       case 'W':
         this.keys.up = isPressed;
         if (shouldLog && isPressed) {
-          console.log('Acceleration pressed');
+          console.log('Acceleration pressed - control state:', this.keys);
           this.lastLogTime = currentTime;
         }
         break;
@@ -87,7 +87,7 @@ class Controls {
       case 'S':
         this.keys.down = isPressed;
         if (shouldLog && isPressed) {
-          console.log('Braking/Reverse pressed');
+          console.log('Braking/Reverse pressed - control state:', this.keys);
           this.lastLogTime = currentTime;
         }
         break;
@@ -97,7 +97,7 @@ class Controls {
       case 'A':
         this.keys.left = isPressed;
         if (shouldLog && isPressed) {
-          console.log('Left steering pressed');
+          console.log('Left steering pressed - control state:', this.keys);
           this.lastLogTime = currentTime;
         }
         break;
@@ -107,7 +107,7 @@ class Controls {
       case 'D':
         this.keys.right = isPressed;
         if (shouldLog && isPressed) {
-          console.log('Right steering pressed');
+          console.log('Right steering pressed - control state:', this.keys);
           this.lastLogTime = currentTime;
         }
         break;
@@ -115,7 +115,7 @@ class Controls {
       case ' ':  // Spacebar
         this.keys.space = isPressed;
         if (shouldLog && isPressed) {
-          console.log('Handbrake pressed');
+          console.log('Handbrake pressed - control state:', this.keys);
           this.lastLogTime = currentTime;
         }
         break;

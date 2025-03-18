@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import City from './city.js'; // Import the City class
 
 // Scene class to encapsulate all Three.js functionality
 class Scene {
@@ -22,6 +23,9 @@ class Scene {
     this.initLights();
     this.createGround();
     
+    // Create the city with diverse districts
+    this.createCity();
+    
     // Setup resize handler
     window.addEventListener('resize', this.handleResize.bind(this));
     
@@ -38,6 +42,12 @@ class Scene {
     this.cameraDistance = 12; // Camera distance behind car
     this.cameraLerpFactor = 0.05; // Slower camera movement for stability
     this.lastCameraPosition = new THREE.Vector3(); // Last camera position for smoothing
+    this.targetFOV = 75; // Default FOV
+    this.currentFOV = 75; // Current FOV that will be adjusted
+    this.fovLerpFactor = 0.1; // FOV adjustment speed
+    this.lastControls = { left: false, right: false, up: false, down: false }; // Track last control state
+    this.controlTransitionTime = 0; // Track time since last control change
+    this.maxCameraDistance = 15; // Maximum allowed distance between car and camera
   }
   
   // Initialize the Three.js scene
@@ -50,7 +60,7 @@ class Scene {
   // Set up the camera with perspective view
   initCamera() {
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(this.targetFOV, aspect, 0.1, 1000);
     this.camera.position.set(0, 10, 20); // Position camera above and behind the starting point
     this.camera.lookAt(0, 0, 0);
   }
@@ -92,7 +102,7 @@ class Scene {
   
   // Create a flat ground plane
   createGround() {
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+    const groundGeometry = new THREE.PlaneGeometry(2000, 2000); // Larger ground to accommodate the city
     const groundMaterial = new THREE.MeshStandardMaterial({
       color: 0x1e824c, // Green color for grass
       roughness: 0.8,
@@ -103,6 +113,12 @@ class Scene {
     ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
     ground.receiveShadow = true;
     this.scene.add(ground);
+  }
+  
+  // Create the city with diverse districts
+  createCity() {
+    this.city = new City(this.scene);
+    console.log('City created and added to scene');
   }
   
   // Handle window resize
@@ -125,82 +141,139 @@ class Scene {
     return this.camera;
   }
   
-  // Add an object to follow with the camera
+  // Set a target object to be followed by the camera
   setCameraTarget(target) {
     this.cameraTarget = target;
+    console.log('Camera target set');
+  }
+  
+  // Add camera shake effect for collisions
+  addCameraShake(intensity) {
+    // Safeguard against invalid intensity
+    if (typeof intensity !== 'number') intensity = 0.5;
+    
+    // Clamp intensity to reasonable values (0-1)
+    intensity = Math.max(0, Math.min(intensity, 1));
+    
+    this.cameraShake = {
+      startTime: performance.now(),
+      duration: 300 + (intensity * 200), // 300-500ms based on intensity
+      intensity: intensity * 0.5, // Scale intensity down to avoid excessive shake
+      originalPosition: this.camera.position.clone()
+    };
+    
+    console.log(`Camera shake added with intensity: ${intensity}`);
+  }
+  
+  // Update camera shake effect
+  _updateCameraShake(deltaTime) {
+    if (!this.cameraShake) return;
+    
+    const now = performance.now();
+    const elapsed = now - this.cameraShake.startTime;
+    
+    if (elapsed < this.cameraShake.duration) {
+      // Calculate shake progress (1-0)
+      const progress = 1 - (elapsed / this.cameraShake.duration);
+      
+      // Calculate current shake intensity
+      const currentIntensity = this.cameraShake.intensity * progress;
+      
+      // Apply random shake offset that decreases over time
+      this.camera.position.x += (Math.random() - 0.5) * currentIntensity;
+      this.camera.position.y += (Math.random() - 0.5) * currentIntensity;
+      this.camera.position.z += (Math.random() - 0.5) * currentIntensity;
+    } else {
+      // Shake effect is over
+      this.cameraShake = null;
+    }
+  }
+  
+  // Update camera to follow the target
+  _updateCameraFollow(deltaTime) {
+    // Get target position and rotation
+    const targetPosition = this.cameraTarget.vehicleGroup.position;
+    const targetRotation = this.cameraTarget.state.rotation;
+    
+    // Calculate ideal camera position
+    const directionVector = new THREE.Vector3(
+      -Math.sin(targetRotation),
+      0,
+      -Math.cos(targetRotation)
+    );
+    
+    // Calculate ideal camera position
+    const idealCameraPosition = new THREE.Vector3(
+      targetPosition.x + (directionVector.x * this.cameraDistance),
+      targetPosition.y + this.cameraHeight,
+      targetPosition.z + (directionVector.z * this.cameraDistance)
+    );
+    
+    // If this is the first frame, snap camera to position
+    if (this.lastCameraPosition.lengthSq() === 0) {
+      this.lastCameraPosition.copy(idealCameraPosition);
+      this.camera.position.copy(idealCameraPosition);
+    } else {
+      // Smoothly move current camera position toward ideal position
+      // Use faster lerping during collisions for a more dramatic effect
+      let lerpFactor = this.cameraLerpFactor;
+      
+      // If there's a camera shake active, reduce the lerp factor slightly to make the camera more "loose"
+      if (this.cameraShake) {
+        lerpFactor *= 0.8;
+      }
+      
+      this.camera.position.lerp(idealCameraPosition, lerpFactor);
+      this.lastCameraPosition.copy(this.camera.position);
+    }
+    
+    // Look at a point slightly above the car
+    const lookTarget = new THREE.Vector3(
+      targetPosition.x,
+      targetPosition.y + 1,
+      targetPosition.z
+    );
+    
+    this.camera.lookAt(lookTarget);
   }
   
   // Animation loop
-  animate(time) {
-    requestAnimationFrame(this.animate.bind(this));
-    
-    // Calculate delta time for smooth animations
-    const deltaTime = time - this.lastTime;
-    
-    // Update FPS counter
-    this.frameCount++;
+  animate() {
+    // Calculate delta time
     const currentTime = performance.now();
+    const deltaTime = currentTime - this.lastTime;
+    this.lastTime = currentTime;
     
-    // Update FPS display every second
+    // Update FPS counter occasionally
+    this.frameCount++;
     if (currentTime - this.lastTime >= 1000) {
       const fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastTime));
       if (this.fpsElement) {
         this.fpsElement.textContent = `FPS: ${fps}`;
       }
       this.frameCount = 0;
-      this.lastTime = currentTime;
     }
     
-    // Update camera position to follow target if available
+    // Update camera position if following a target
     if (this.cameraTarget && this.cameraTarget.vehicleGroup) {
-      // Get target position and rotation
-      const targetPosition = this.cameraTarget.vehicleGroup.position;
-      const targetRotation = this.cameraTarget.state.rotation;
-      
-      // First, directly position the camera based on car's position and rotation
-      // Convert car direction to a unit vector
-      const directionVector = new THREE.Vector3(
-        -Math.sin(targetRotation), // Negative to position camera BEHIND car
-        0,
-        -Math.cos(targetRotation)  // Negative to position camera BEHIND car
-      );
-      
-      // Calculate ideal camera position
-      const idealCameraPosition = new THREE.Vector3(
-        targetPosition.x + (directionVector.x * this.cameraDistance),
-        targetPosition.y + this.cameraHeight,
-        targetPosition.z + (directionVector.z * this.cameraDistance)
-      );
-      
-      // If this is the first frame, snap camera to position
-      if (this.lastCameraPosition.lengthSq() === 0) {
-        this.lastCameraPosition.copy(idealCameraPosition);
-        this.camera.position.copy(idealCameraPosition);
-      } else {
-        // Smoothly move current camera position toward ideal position
-        this.camera.position.lerp(idealCameraPosition, this.cameraLerpFactor);
-        this.lastCameraPosition.copy(this.camera.position);
-      }
-      
-      // Look at a point slightly above the car
-      const lookTarget = new THREE.Vector3(
-        targetPosition.x,
-        targetPosition.y + 1, // Look slightly above vehicle
-        targetPosition.z
-      );
-      
-      this.camera.lookAt(lookTarget);
+      this._updateCameraFollow(deltaTime);
     }
+    
+    // Update camera shake if active
+    this._updateCameraShake(deltaTime);
     
     // Render the scene
     this.renderer.render(this.scene, this.camera);
     
-    return deltaTime;
+    // Request next frame
+    window.gameScene = this; // Make gameScene accessible globally for collision feedback
+    requestAnimationFrame(this.animate.bind(this));
   }
   
   // Start the animation loop
   start() {
-    this.animate(performance.now());
+    // Return the first animation frame call
+    return requestAnimationFrame(this.animate.bind(this));
   }
 }
 

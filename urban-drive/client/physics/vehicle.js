@@ -7,31 +7,45 @@ import * as THREE from 'three';
 import OIMO from 'oimo';
 
 class Vehicle {
-  constructor(scene) {
+  constructor(scene, initialPosition) {
     // Store the scene for adding meshes
     this.scene = scene;
+    
+    // Fixed height for the car
+    this.fixedHeight = 0.5; // Height above ground
+    
+    // Logging timers
+    this.lastLogTime = 0;
+    this.lastForceLog = 0;
+    this.lastSpeedLog = 0;
     
     // Vehicle physics parameters
     this.params = {
       mass: 1000,               // Vehicle mass in kg
-      maxSpeed: 120,            // Max speed in km/h
-      acceleration: 10,         // Acceleration rate
+      maxSpeed: 100,            // Max speed in km/h (reduced from 120)
+      acceleration: 15,         // Base acceleration rate (increased from 10)
       braking: 20,              // Braking rate
       reverseSpeed: 40,         // Max reverse speed in km/h
-      steeringAngle: Math.PI/4, // Maximum steering angle in radians (increased from PI/6)
-      steeringSpeed: 4,         // Speed of steering rotation (increased from 2)
+      steeringAngle: Math.PI/4, // Maximum steering angle in radians
+      steeringSpeed: 4,         // Speed of steering rotation
       friction: 0.7,            // Ground friction
       handbrakeForce: 30,       // Force applied when handbrake is used
-      rotationDamping: 0.9     // Rotation damping factor (reduced from 0.95)
+      rotationDamping: 0.9,     // Rotation damping factor
+      collisionRestitution: 0.4 // Bounciness of collisions (0-1)
     };
     
     // Vehicle state
     this.state = {
       speed: 0,                // Current speed
       rotation: 0,             // Current rotation in radians
-      position: new THREE.Vector3(0, 0.5, 0), // Position with y slightly above ground to avoid collision issues
-      angularVelocity: 0       // Angular velocity for steering
+      position: initialPosition || new THREE.Vector3(0, this.fixedHeight, 0), // Use provided position or default
+      angularVelocity: 0,      // Angular velocity for steering
+      isColliding: false,      // Whether the vehicle is currently colliding
+      lastCollision: null      // Information about the last collision
     };
+    
+    // Ensure Y position is at fixed height
+    this.state.position.y = this.fixedHeight;
     
     // Create the vehicle mesh
     this._createVehicleMesh();
@@ -39,7 +53,7 @@ class Vehicle {
     // Initialize Oimo.js physics
     this._initPhysics();
     
-    console.log('Vehicle initialized');
+    console.log('Vehicle initialized at position', this.state.position);
   }
   
   // Create the vehicle mesh with a simple box shape with rounded edges
@@ -197,13 +211,14 @@ class Vehicle {
       collidesWith: 0xffffffff
     });
     
-    // Create vehicle body
+    // Create vehicle body - using a kinematic body that follows our manual positioning
     this.body = this.world.add({
       type: 'box',
       size: [2, 1, 4],
-      pos: [this.state.position.x, this.state.position.y, this.state.position.z],
+      pos: [this.state.position.x, this.fixedHeight, this.state.position.z],
       rot: [0, this.state.rotation, 0],
       move: true,
+      kinematic: true, // Make it kinematic so we can manually position it
       density: this.params.mass / 8, // Approx volume of the box
       friction: 0.5,
       restitution: 0.2,
@@ -211,27 +226,45 @@ class Vehicle {
       collidesWith: 0xffffffff
     });
     
-    // Prevent the vehicle from rotating around the Z axis (flipping over)
+    // Completely restrict vertical movement for maximum stability
     this.body.setupMass({
       type: 1, // Mass distribution type
-      linearFactor: [1, 1, 1], // Linear movement in all directions
-      angularFactor: [1, 1, 0]  // Block rotation around z axis
+      linearFactor: [1, 0, 1], // No Y movement at all
+      angularFactor: [0, 1, 0]  // Only allow rotation around Y axis (steering)
     });
+    
+    // Add damping to make movement more responsive
+    this.body.linearDamping = 0.5;
+    this.body.angularDamping = 0.5;
     
     console.log('Physics initialized');
   }
   
   // Update vehicle position and rotation based on controls
-  update(controls, deltaTime) {
+  update(controls, deltaTime, collision = null) {
     if (!controls || !deltaTime) return;
     
     // Convert delta time to seconds
     const dt = deltaTime / 1000;
     
+    // Handle collision if one occurred
+    if (collision) {
+      this._handleCollision(collision, dt);
+    } else {
+      this.state.isColliding = false;
+    }
+    
+    // Update visual effects (bouncing, etc.)
+    this._updateVisualEffects(dt);
+    
     // Handle acceleration and braking
     if (controls.up) {
-      // Accelerate forward
-      this.state.speed += this.params.acceleration * dt;
+      // Calculate a non-linear acceleration factor - higher at low speeds, lower at high speeds
+      const currentSpeedRatio = Math.abs(this.state.speed) / this.params.maxSpeed;
+      const accelerationFactor = 1 - (currentSpeedRatio * 0.7); // Decreases acceleration as speed increases
+      
+      // Apply non-linear acceleration
+      this.state.speed += this.params.acceleration * accelerationFactor * dt;
       
       // Limit to max speed
       if (this.state.speed > this.params.maxSpeed) {
@@ -247,8 +280,12 @@ class Vehicle {
           this.state.speed = 0;
         }
       } else {
-        // Reverse if already stopped
-        this.state.speed -= this.params.acceleration * dt;
+        // Reverse with non-linear acceleration
+        const currentSpeedRatio = Math.abs(this.state.speed) / this.params.reverseSpeed;
+        const accelerationFactor = 1 - (currentSpeedRatio * 0.5); // Decreases acceleration as reverse speed increases
+        
+        // Apply non-linear acceleration for reverse
+        this.state.speed -= this.params.acceleration * accelerationFactor * dt;
         
         // Limit reverse speed
         if (this.state.speed < -this.params.reverseSpeed) {
@@ -265,54 +302,26 @@ class Vehicle {
       }
     }
     
-    // Apply handbrake
-    if (controls.space) {
-      const handbrakeForce = this.params.handbrakeForce * dt;
-      
-      if (Math.abs(this.state.speed) > 0.1) {
-        // Apply strong braking force
-        if (this.state.speed > 0) {
-          this.state.speed -= handbrakeForce;
-          
-          if (this.state.speed < 0) {
-            this.state.speed = 0;
-          }
-        } else {
-          this.state.speed += handbrakeForce;
-          
-          if (this.state.speed > 0) {
-            this.state.speed = 0;
-          }
-        }
-        
-        // Increase angular velocity when handbraking at speed (drift effect)
-        if (Math.abs(this.state.speed) > 10 && (controls.left || controls.right)) {
-          this.state.angularVelocity *= 1.05;
-        }
-      }
-    }
-    
-    // Handle steering - modified to be more responsive and allow turning at lower speeds
-    const minSpeedForSteering = 0.1; // Reduced minimum speed for steering
-    
-    // Track current steering angle for wheels
+    // Handle steering
+    const minSpeedForSteering = 0.1;
     let steeringAngle = 0;
     
     if (Math.abs(this.state.speed) > minSpeedForSteering) {
       // Calculate steering factor based on speed (less effective at high speeds)
-      const speedFactor = 1 - (Math.min(Math.abs(this.state.speed), this.params.maxSpeed) / this.params.maxSpeed) * 0.3; // Reduced speed impact
-      
-      // Reset angular velocity each frame instead of accumulating it
-      this.state.angularVelocity = 0;
+      const speedFactor = 1 - (Math.min(Math.abs(this.state.speed), this.params.maxSpeed) / this.params.maxSpeed) * 0.3;
       
       if (controls.left) {
-        // Set fixed steering rate for left turns - reversed to fix direction
-        this.state.angularVelocity = -this.params.steeringSpeed * speedFactor; // Reversed sign
-        steeringAngle = -Math.PI / 6; // -30 degrees wheel rotation for LEFT turn
+        this.state.angularVelocity = this.params.steeringSpeed * speedFactor;
+        steeringAngle = Math.PI / 6; // +30 degrees wheel rotation for LEFT turn
       } else if (controls.right) {
-        // Set fixed steering rate for right turns - reversed to fix direction
-        this.state.angularVelocity = this.params.steeringSpeed * speedFactor; // Reversed sign
-        steeringAngle = Math.PI / 6; // +30 degrees wheel rotation for RIGHT turn
+        this.state.angularVelocity = -this.params.steeringSpeed * speedFactor;
+        steeringAngle = -Math.PI / 6; // -30 degrees wheel rotation for RIGHT turn
+      } else {
+        // Gradually return to straight when no steering input
+        this.state.angularVelocity *= 0.95;
+        if (Math.abs(this.state.angularVelocity) < 0.01) {
+          this.state.angularVelocity = 0;
+        }
       }
       
       // Apply steering limits
@@ -323,11 +332,10 @@ class Vehicle {
       this.state.angularVelocity = 0;
     }
     
-    // Front-wheel steering model - calculate next position first, then rotate
-    const turnRate = this.state.angularVelocity * dt * 0.8;
-    const carLength = 4; // Length of car in units
+    // Update position and rotation
+    const turnRate = this.state.angularVelocity * dt;
     
-    // Calculate position delta from velocity
+    // Calculate forward direction based on current rotation
     const forwardDirection = new THREE.Vector3(
       Math.sin(this.state.rotation),
       0,
@@ -338,51 +346,28 @@ class Vehicle {
     const positionDelta = forwardDirection.clone().multiplyScalar(this.state.speed * dt);
     this.state.position.add(positionDelta);
     
-    // Apply rotation at the front of the car (front-wheel steering)
-    if (Math.abs(turnRate) > 0.001 && Math.abs(this.state.speed) > 0.5) {
-      // Position of front axle in world space
-      const frontAxlePos = new THREE.Vector3(
-        this.state.position.x + Math.sin(this.state.rotation) * (carLength/2),
-        this.state.position.y,
-        this.state.position.z + Math.cos(this.state.rotation) * (carLength/2)
-      );
-      
-      // Update car rotation
-      this.state.rotation += turnRate;
-      
-      // Calculate the new position that keeps the rear axle's path continuous
-      const rearAxlePos = new THREE.Vector3(
-        frontAxlePos.x - Math.sin(this.state.rotation) * carLength,
-        this.state.position.y,
-        frontAxlePos.z - Math.cos(this.state.rotation) * carLength
-      );
-      
-      // Update car position to the correct rear axle position
-      this.state.position.copy(rearAxlePos);
-    } else {
-      // Just update rotation normally at very low speeds or no turning
-      this.state.rotation += turnRate;
-    }
+    // Update rotation - ONLY around Y axis
+    this.state.rotation += turnRate;
     
-    // Update physics body position and rotation
-    this.body.position.set(this.state.position.x, this.state.position.y, this.state.position.z);
+    // SIMPLIFIED APPROACH: Update the vehicle position and rotation directly without physics
+    // This ensures we have exact control over the car's orientation
+    this.vehicleGroup.position.copy(this.state.position);
+    
+    // Create a new quaternion from Euler rotation that ONLY rotates around Y axis
+    const rotation = new THREE.Euler(0, this.state.rotation, 0);
+    this.vehicleGroup.quaternion.setFromEuler(rotation);
+    
+    // Update the physics body to match our simplified movement
+    this.body.position.set(this.state.position.x, this.fixedHeight, this.state.position.z);
     this.body.quaternion.setFromEuler(0, this.state.rotation, 0);
     
     // Step the physics world
     this.world.step();
     
-    // Update vehicle position and rotation from physics
-    const bodyPosition = this.body.getPosition();
-    const bodyQuaternion = this.body.getQuaternion();
-    
-    // Update the Three.js mesh group
-    this.vehicleGroup.position.set(bodyPosition.x, bodyPosition.y, bodyPosition.z);
-    this.vehicleGroup.quaternion.set(bodyQuaternion.x, bodyQuaternion.y, bodyQuaternion.z, bodyQuaternion.w);
-    
-    // Update wheel rotations
+    // Rotate wheels based on steering angle and vehicle speed
     // Rotate front wheels for steering
     this.frontWheels.forEach(wheelGroup => {
-      wheelGroup.rotation.y = steeringAngle; // Apply steering angle to front wheels
+      wheelGroup.rotation.y = steeringAngle;
     });
     
     // Rotate all wheels based on vehicle speed (visual effect only)
@@ -390,11 +375,162 @@ class Vehicle {
     this.wheels.forEach(wheel => {
       wheel.rotation.x += wheelRotationSpeed;
     });
+  }
+  
+  // Handle collision response
+  _handleCollision(collision, dt) {
+    if (!collision) return;
     
-    // Log vehicle state for debugging (throttled)
-    if (controls.up || controls.down || controls.left || controls.right || Math.abs(this.state.speed) > 1) {
-      console.log('Vehicle speed:', this.state.speed.toFixed(2), 'km/h');
+    // Store collision info
+    this.state.isColliding = true;
+    this.state.lastCollision = collision;
+    
+    // Calculate impact speed along normal
+    const impactSpeed = this.state.speed;
+    const normalizedSpeed = Math.abs(impactSpeed) / this.params.maxSpeed;
+    
+    // Calculate forward direction
+    const forwardDirection = new THREE.Vector3(
+      Math.sin(this.state.rotation),
+      0,
+      Math.cos(this.state.rotation)
+    );
+    
+    // Dot product to find how much of our speed is along collision normal
+    const normalComponent = forwardDirection.dot(collision.normal);
+    
+    // Only respond to collisions if we're moving toward the obstacle
+    if (impactSpeed * normalComponent < 0) {
+      // Calculate collision intensity for various effects
+      const collisionIntensity = Math.min(Math.abs(impactSpeed) * Math.abs(normalComponent) / 20, 1);
+      
+      // Calculate how much to slow down based on impact speed
+      const speedReduction = impactSpeed * Math.abs(normalComponent) * (1 + this.params.collisionRestitution);
+      
+      // Enhanced speed reduction based on collision severity
+      const enhancedSpeedReduction = speedReduction * (1 + normalizedSpeed);
+      
+      // Reduce speed based on collision - more dramatically now
+      this.state.speed -= enhancedSpeedReduction;
+      
+      // Add a "bounce back" effect on significant impacts
+      if (Math.abs(impactSpeed) > 20 && Math.abs(normalComponent) > 0.5) {
+        // Calculate bounce force - stronger at higher speeds
+        const bounceForce = this.params.collisionRestitution * 
+                           (0.2 + normalizedSpeed * 0.5) * 
+                           Math.abs(impactSpeed);
+        
+        // Apply a stronger bounce effect
+        this.state.speed = -bounceForce * Math.sign(impactSpeed) * normalComponent;
+        
+        // Add a short-term visual bounce effect (non-physics)
+        this._applyVisualBounce(collision, collisionIntensity);
+      } else if (Math.abs(speedReduction) > 10 && Math.abs(normalComponent) > 0.3) {
+        // Medium impact - smaller bounce
+        const mediumBounce = this.params.collisionRestitution * 0.3 * Math.abs(impactSpeed);
+        this.state.speed = -mediumBounce * Math.sign(impactSpeed) * normalComponent;
+        
+        // Add smaller visual bounce
+        this._applyVisualBounce(collision, collisionIntensity * 0.5);
+      } else if (Math.abs(this.state.speed) < 1) {
+        // Stop completely for small speeds
+        this.state.speed = 0;
+      }
+      
+      // Add more angular velocity for glancing collisions - increased effect
+      if (Math.abs(normalComponent) < 0.8 && Math.abs(normalComponent) > 0.2) {
+        const sideComponent = 1 - Math.abs(normalComponent);
+        // Increase torque effect for more dramatic spins
+        const torqueEffect = sideComponent * normalizedSpeed * 0.7;
+        
+        // Determine direction of rotation based on which side was hit
+        const crossProduct = new THREE.Vector3().crossVectors(forwardDirection, collision.normal);
+        const rotationDirection = Math.sign(crossProduct.y);
+        
+        this.state.angularVelocity += rotationDirection * torqueEffect;
+      }
+      
+      // Move vehicle out of collision to prevent getting stuck - push back more on high-speed impacts
+      const pushbackFactor = 1.05 + (normalizedSpeed * 0.2);
+      const pushbackDistance = collision.penetration * pushbackFactor;
+      const pushbackVector = collision.normal.clone().multiplyScalar(pushbackDistance);
+      this.state.position.add(pushbackVector);
+      
+      // Ensure Y position is maintained
+      this.state.position.y = this.fixedHeight;
+      
+      // Apply a short jolt to the camera through the scene (if implemented)
+      if (window.gameScene && typeof window.gameScene.addCameraShake === 'function' && 
+          collisionIntensity > 0.3) {
+        window.gameScene.addCameraShake(collisionIntensity);
+      }
     }
+  }
+  
+  // Apply visual bounce effect for collisions
+  _applyVisualBounce(collision, intensity) {
+    // Store bounce effect data
+    this.bouncingEffect = {
+      startTime: performance.now(),
+      duration: 300 + (intensity * 200), // 300-500ms based on intensity
+      intensity: intensity,
+      normal: collision.normal.clone(),
+      phase: 0
+    };
+  }
+  
+  // Process visual bouncing effect on update
+  _updateVisualEffects(dt) {
+    // Handle visual bounce effect if active
+    if (this.bouncingEffect) {
+      const now = performance.now();
+      const elapsed = now - this.bouncingEffect.startTime;
+      
+      if (elapsed < this.bouncingEffect.duration) {
+        // Calculate bounce progress (0-1)
+        const progress = elapsed / this.bouncingEffect.duration;
+        
+        // Use a sine wave to create a bounce effect
+        const bounceAmount = Math.sin(progress * Math.PI) * this.bouncingEffect.intensity;
+        
+        // Apply a subtle up/down movement to the vehicle mesh
+        this.vehicleGroup.position.y = this.state.position.y + (bounceAmount * 0.3);
+        
+        // Add a subtle tilt in the direction of the impact
+        const maxTilt = 0.1 * this.bouncingEffect.intensity;
+        const tiltX = this.bouncingEffect.normal.z * maxTilt * bounceAmount;
+        const tiltZ = -this.bouncingEffect.normal.x * maxTilt * bounceAmount;
+        
+        // Apply the tilt as a temporary rotation
+        this.bodyMesh.rotation.x = tiltX;
+        this.bodyMesh.rotation.z = tiltZ;
+      } else {
+        // Reset after effect completes
+        this.vehicleGroup.position.y = this.state.position.y;
+        this.bodyMesh.rotation.x = 0;
+        this.bodyMesh.rotation.z = 0;
+        this.bouncingEffect = null;
+      }
+    } else {
+      // Ensure vehicle is at the correct height when no bounce is active
+      this.vehicleGroup.position.y = this.state.position.y;
+      
+      // Ensure body rotation is reset
+      if (this.bodyMesh.rotation.x !== 0 || this.bodyMesh.rotation.z !== 0) {
+        this.bodyMesh.rotation.x = 0;
+        this.bodyMesh.rotation.z = 0;
+      }
+    }
+  }
+  
+  // Check if the vehicle is currently in a collision state
+  isColliding() {
+    return this.state.isColliding;
+  }
+  
+  // Get information about the last collision
+  getLastCollision() {
+    return this.state.lastCollision;
   }
 }
 

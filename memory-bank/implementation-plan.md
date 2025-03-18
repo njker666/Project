@@ -114,15 +114,19 @@ This document provides a detailed, step-by-step implementation plan for AI devel
 
 ## Step 7: Implement Collision Detection with Oimo.js
 
-- In `client/physics/vehicle.js`, leverage Oimo.js for collision detection.
-- Create physics bodies for buildings and other obstacles.
-- Set up collision groups and masks to handle vehicle-building and vehicle-road interactions.
-- Implement physics-based responses to collisions (e.g., vehicle bounces off buildings).
+- In `client/physics/vehicle.js`, enhance the simplified physics model with collision detection:
+  - Leverage existing Oimo.js integration but maintain our direct control approach for vehicle stability
+  - Create physics bodies for buildings and other obstacles
+  - Set up collision events that affect the vehicle state without interfering with rotation control
+  - Implement collision responses that feel realistic but prioritize gameplay over strict physical accuracy
+- Add visual feedback for collisions (e.g., particle effects, sound cues)
+- Ensure collision detection doesn't reintroduce the orientation issues we've solved
 
 **Test:**
-- Drive the vehicle toward a building and confirm it collides physically instead of passing through.
-- Test collisions at different speeds to ensure physics responses are appropriate.
-- Verify that collision detection performs well and maintains the target 30 FPS.
+- Drive the vehicle toward a building and confirm it collides physically instead of passing through
+- Test collisions at different speeds to ensure physics responses are appropriate
+- Verify that the car maintains proper upright orientation during and after collisions
+- Ensure that collision detection performs well and maintains the target 30 FPS
 
 **Timeframe:** 1-2 days
 

@@ -141,12 +141,27 @@ Date: [Current Date]
 - Created a speed display indicator that changes color based on speed
 - Updated the Scene class to support camera targeting
 - Added ES module wrapper for Oimo.js to support imports
+- Enhanced vehicle physics for stability:
+  - Implemented kinematic body approach to prevent flying issues
+  - Fixed car to always stay at ground level
+  - Added proper front-wheel steering model for realistic turning
+  - Fine-tuned physics parameters for better control
+- Improved camera following system:
+  - Added speed-based camera adjustment to keep consistent distance
+  - Implemented smooth camera transitions when turning
+  - Prevented camera zoom issues during acceleration and turning
+  - Added distance compensation to maintain ideal viewing angle
+  - Reduced camera jerk when initiating controls
 
 ### Challenges and Solutions:
 - Implemented custom physics model using Oimo.js
 - Created smooth camera following with position interpolation
 - Balanced vehicle physics parameters for responsive but realistic controls
 - Added the necessary CDN and module wrapper for Oimo.js
+- Solved car "flying" issues by using a kinematic physics body approach
+- Fixed camera zoom-in problems during turning by implementing compensating factors
+- Addressed turning issues by properly implementing front-wheel steering model
+- Ensured physics stability while maintaining responsive controls
 
 ### Validation:
 - Verified that the vehicle appears on the ground plane
@@ -154,7 +169,205 @@ Date: [Current Date]
 - Tested acceleration, braking, and steering with physics-based movement
 - Verified that the camera follows the vehicle smoothly
 - Checked that the speed display updates correctly and changes color
+- Confirmed car stays firmly on the ground even at high speeds
+- Validated that camera maintains consistent distance from the car
+- Tested that turning produces realistic car movement from front wheels
+- Verified smooth camera behavior when simultaneously turning and accelerating
 
 ### Next Steps:
 - Proceed to Step 6: Create a diverse city layout with districts
 - Implement multiple distinct areas with different building types
+
+## Step 6: Create a Diverse City Layout with Districts (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Created a `city.js` file in the `client/rendering` directory
+- Implemented a City class with a grid-based layout containing multiple distinct districts:
+  - Downtown district with tall, densely packed buildings
+  - Suburbs with smaller, more spaced-out buildings 
+  - Industrial area with large warehouse-like structures
+  - Waterfront district with buildings along a simulated water surface
+- Created a road grid system connecting all districts
+- Implemented building generation with district-specific characteristics:
+  - Unique height ranges and densities for each district
+  - District-specific color palettes to visually differentiate areas
+  - Windows and building details appropriate to each district type
+- Added realistic details:
+  - Road markings to guide the player
+  - Rooftop details like water towers and air conditioning units
+  - Window lights for visual interest
+  - Water surface for the waterfront district
+- Integrated the city with the existing scene and vehicle placement
+- Added UI information to help the player navigate between districts
+
+### Challenges and Solutions:
+- Balanced performance and visual detail by using simple geometries with targeted details
+- Created different building styles while maintaining code reusability
+- Calculated proper placement of buildings to avoid road overlaps
+- Managed building density and spacing to create distinct visual character for each district
+- Created efficient window placement algorithms to minimize performance impact
+- Implemented waterfront boundaries to create realistic shoreline effects
+
+### Validation:
+- Verified visually distinct districts with unique building characteristics
+- Confirmed that the road grid system allows for proper navigation between districts
+- Tested vehicle movement and collision with buildings and roads
+- Validated the performance to ensure it maintains the target 30+ FPS
+- Verified that the UI correctly displays district information
+- Confirmed that buildings have appropriate details including windows and rooftop features
+
+### Next Steps:
+- Proceed to Step 7: Implement collision detection with Oimo.js
+- Add physics bodies for buildings and other obstacles
+
+## Vehicle Physics Improvements (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Fixed critical issues with vehicle rotation:
+  - Resolved the problem where the car would become horizontal when turning
+  - Implemented a simplified physics approach that restricts rotation to only the Y-axis
+  - Corrected the steering direction to properly respond to left/right controls
+- Enhanced vehicle performance characteristics:
+  - Implemented a non-linear acceleration model that provides faster initial acceleration
+  - Adjusted top speed to 100 km/h for better gameplay balance
+  - Created more responsive vehicle handling by directly controlling the Three.js model
+- Technical improvements:
+  - Simplified the relationship between physics body and visual model
+  - Removed complex physics calculations that were causing instability
+  - Ensured constant upright orientation of the vehicle during all maneuvers
+  - Optimized camera following logic for better driving experience
+
+### Challenges and Solutions:
+- **Challenge**: The vehicle would tilt horizontally during turns, making it difficult to control
+  - **Solution**: Implemented direct control of the vehicle's rotation quaternion using a pure Y-axis rotation
+- **Challenge**: The steering direction was inverted (right key turned left and vice versa)
+  - **Solution**: Swapped angular velocity values and steering angles for correct directional control
+- **Challenge**: Linear acceleration made the car feel unresponsive at low speeds
+  - **Solution**: Implemented a non-linear acceleration curve that provides high acceleration at low speeds and tapers off at high speeds
+
+### Architecture Updates:
+- Simplified the physics-visual relationship in the vehicle architecture:
+  - Now using a more direct approach where the state is updated first, then applied to both the visual model and physics body
+  - Removed complex physics-driven updates in favor of kinematic positioning
+- Retained Oimo.js for future collision detection but with a more controlled integration
+- The new approach maintains better control of the vehicle state while still allowing for future physics interactions
+
+### Validation:
+- Verified that the car maintains proper upright orientation during all turns
+- Confirmed improved acceleration feel with faster initial response
+- Tested that left/right controls correctly correspond to left/right turning
+- Ensured the camera smoothly follows the vehicle without unwanted motion
+- Confirmed top speed is properly limited to 100 km/h
+
+### Next Steps:
+- Proceed to Step 7: Implement collision detection with Oimo.js
+- Add physics bodies for buildings and other obstacles
+- Consider implementing special driving effects (drift, burnout) using the new stable physics foundation
+
+## Step 7: Implement Collision Detection with Oimo.js (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Created a comprehensive collision detection system:
+  - Enhanced the `City` class to store building data for collision detection
+  - Implemented a new `CollisionManager` class that handles collision detection and feedback
+  - Updated the `Vehicle` class to respond to collisions while maintaining our simplified physics model
+- Added realistic collision responses:
+  - Vehicles bounce, slide, or stop depending on collision angle and speed
+  - Implemented speed reduction based on impact
+  - Added torque effects that cause rotation during glancing collisions
+  - Ensured the vehicle cannot penetrate or get stuck in buildings
+- Created visual feedback for collisions:
+  - Particle effects that appear at impact points
+  - UI indicator that appears during collisions
+  - Particles that disperse based on collision angle and magnitude
+- Maintained performance and stability:
+  - Optimized collision checks to maintain target 30+ FPS
+  - Ensured the car stays upright during and after collisions
+  - Prevented "sticky" collisions through collision margin adjustments
+
+### Challenges and Solutions:
+- **Challenge**: Accurate collision detection while maintaining performance  
+  **Solution**: Implemented simple bounding box collisions with optimization for building types
+- **Challenge**: Realistic collision responses without reintroducing physics instabilities  
+  **Solution**: Created a custom collision response system that modifies speed and angular velocity directly
+- **Challenge**: Ensuring the car doesn't get stuck in buildings  
+  **Solution**: Added a pushback mechanism with slightly larger than penetration distance
+- **Challenge**: Preserving the stable Y-axis-only rotation during collisions  
+  **Solution**: Carefully implemented rotation effects that only affect Y-axis rotation
+
+### Validation:
+- Verified vehicle collides properly with buildings rather than passing through
+- Tested collision responses at various angles and speeds to ensure realistic behavior
+- Confirmed that the car maintains proper upright orientation during and after collisions
+- Validated that collision effects (particles) appear correctly at impact points
+- Confirmed that performance remains at target 30+ FPS even with numerous buildings
+
+### Next Steps:
+- Proceed to Step 8: Add Basic UI Elements
+- Implement more advanced collision effects like damage visualization
+- Consider adding audio effects for different types of collisions
+
+### Architecture Notes:
+- Collision detection follows a modular design with separation of concerns:
+  - `CollisionManager`: Handles detection and visual effects
+  - `Vehicle`: Focuses on physics response to collision data
+  - `City`: Provides building collision data
+- This architecture allows for future expansion to include other types of collidable objects
+
+## Enhanced Collision Effects (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Dramatically improved visual feedback for collisions:
+  - Increased particle count and variety for more impactful collisions
+  - Added colored sparks and fire particles for high-speed impacts
+  - Implemented dust cloud effects that expand and fade naturally
+  - Created particle rotation for more realistic debris behavior
+  - Adjusted particle lifetimes based on collision intensity
+  - Fine-tuned particle physics with gravity and air resistance
+- Enhanced vehicle collision response physics:
+  - Improved knockback effect that scales with impact speed
+  - Added visual bouncing effect to the vehicle on impact
+  - Implemented subtle vehicle body tilting based on impact direction
+  - Increased spin-out effect for glancing collisions
+  - Made pushback distance dynamic based on impact speed
+- Added camera shake effects:
+  - Implemented screen shake that varies with collision intensity
+  - Created natural shake decay over time
+  - Adjusted camera follow behavior during impacts for more dramatic feel
+  - Made camera "looser" during impacts to enhance the sense of force
+
+### Challenges and Solutions:
+- **Challenge**: Creating realistic visual feedback without hurting performance  
+  **Solution**: Optimized particle creation with dynamic counts based on impact speed
+- **Challenge**: Adding vehicle bounce effects without breaking the physics model  
+  **Solution**: Implemented a purely visual bouncing effect separate from physics calculations
+- **Challenge**: Making camera shake feel natural without being disorienting  
+  **Solution**: Created a decaying shake pattern with intensity based on collision force
+
+### Validation:
+- Verified dramatic improvement in visual collision feedback
+- Tested various collision scenarios to confirm appropriate effect scaling
+- Validated that high-speed collisions feel more impactful
+- Confirmed that the vehicle reacts more dramatically to collisions
+- Ensured performance remains stable even with increased particle effects
+- Verified vehicle stability is maintained despite enhanced visual effects
+
+### Next Steps:
+- Consider adding audio effects to match the improved visual feedback
+- Explore damage modeling for the vehicle with visual representation
+- Continue to Step 8: Add Basic UI Elements
+
+### Architecture Notes:
+- The enhanced effects maintain the modular design principles:
+  - Visual effects remain in the `CollisionManager`
+  - Physics response is handled by the `Vehicle`
+  - Camera shake is managed by the `Scene`
+  - Each component communicates only the necessary information
