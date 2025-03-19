@@ -99,6 +99,18 @@ const connection = new WebSocketConnection(
     
     // Update player position
     otherPlayers.updatePlayerPosition(id, position, rotation, speed);
+  },
+  // Server reconciliation handler
+  (state, sequence, timestamp) => {
+    // Apply server reconciliation to player vehicle
+    if (playerVehicle && playerVehicle.applyServerReconciliation) {
+      playerVehicle.applyServerReconciliation(state, sequence, timestamp);
+    }
+  },
+  // Traffic update handler
+  (trafficData) => {
+    // Update traffic vehicles
+    gameScene.updateTraffic(trafficData);
   }
 );
 
@@ -212,4 +224,5 @@ console.log('HUD elements created - speedometer and mini-map visible');
 console.log('WebSocket connection established for multiplayer');
 console.log('Players joining the game will be visible as colored cars');
 console.log('Vehicle position is synchronized with other players');
-console.log('Next step: Set up the server with Node.js and Express'); 
+console.log('Traffic system is active - AI vehicles moving on roads');
+console.log('Next step: Final Testing and Debugging'); 

@@ -5,6 +5,7 @@
 
 const WebSocket = require('ws');
 const config = require('../../shared/config');
+const Traffic = require('../game-state/traffic');
 
 /**
  * WebSocketServer class provides real-time communication for the game
@@ -36,6 +37,9 @@ class WebSocketServer {
     // Server-side physics simulation properties
     this.physicsWorld = this.initializePhysicsWorld();
     this.lastPhysicsUpdate = Date.now();
+    
+    // Initialize traffic system
+    this.trafficSystem = new Traffic(this);
     
     this.setupEventHandlers();
     this.startPeriodicTasks();

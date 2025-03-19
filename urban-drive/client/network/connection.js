@@ -15,8 +15,9 @@ class WebSocketConnection {
    * @param {function} onPlayerLeave - Callback for player leave events
    * @param {function} onPlayerMove - Callback for player movement updates
    * @param {function} onServerReconciliation - Callback for server reconciliation (optional)
+   * @param {function} onTrafficUpdate - Callback for traffic updates (optional)
    */
-  constructor(onPlayerList, onPlayerJoin, onPlayerLeave, onPlayerMove, onServerReconciliation) {
+  constructor(onPlayerList, onPlayerJoin, onPlayerLeave, onPlayerMove, onServerReconciliation, onTrafficUpdate) {
     this.ws = null;
     this.connected = false;
     this.id = null;
@@ -33,6 +34,7 @@ class WebSocketConnection {
     this.onPlayerLeave = onPlayerLeave || (() => {});
     this.onPlayerMove = onPlayerMove || (() => {});
     this.onServerReconciliation = onServerReconciliation || (() => {});
+    this.onTrafficUpdate = onTrafficUpdate || (() => {});
     
     // Connection status display element
     this.statusElement = document.createElement('div');
@@ -110,6 +112,9 @@ class WebSocketConnection {
     try {
       const message = JSON.parse(event.data);
       
+      // Add to total processed messages stat
+      this.totalMessagesReceived++;
+      
       // Handle different message types
       switch (message.type) {
         case 'welcome':
@@ -136,15 +141,15 @@ class WebSocketConnection {
           this.handleServerReconciliationMessage(message);
           break;
           
-        case 'chatMessage':
-          // Future implementation
+        case 'trafficUpdate':
+          this.handleTrafficUpdateMessage(message);
           break;
           
         default:
           console.warn(`[NETWORK] Unknown message type: ${message.type}`);
       }
     } catch (error) {
-      console.error('[NETWORK] Error parsing message:', error);
+      console.error('[NETWORK] Error processing message:', error);
     }
   }
   
@@ -279,6 +284,20 @@ class WebSocketConnection {
     
     // Forward to the callback handler with enhanced state data
     this.onServerReconciliation(message.state, message.sequence, message.timestamp);
+  }
+  
+  /**
+   * Handle traffic update messages from the server
+   * @param {object} message - Traffic update message data
+   */
+  handleTrafficUpdateMessage(message) {
+    if (!message.vehicles || !Array.isArray(message.vehicles)) {
+      console.warn('[NETWORK] Received invalid traffic update');
+      return;
+    }
+    
+    // Call the traffic update callback with the vehicle data
+    this.onTrafficUpdate(message.vehicles);
   }
   
   /**

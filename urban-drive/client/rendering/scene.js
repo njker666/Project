@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import City from './city.js'; // Import the City class
+import TrafficManager from './traffic.js'; // Import the TrafficManager class
 
 // Scene class to encapsulate all Three.js functionality
 class Scene {
@@ -25,6 +26,9 @@ class Scene {
     
     // Create the city with diverse districts
     this.createCity();
+    
+    // Initialize traffic manager
+    this.trafficManager = new TrafficManager(this.scene);
     
     // Setup resize handler
     window.addEventListener('resize', this.handleResize.bind(this));
@@ -48,6 +52,15 @@ class Scene {
     this.lastControls = { left: false, right: false, up: false, down: false }; // Track last control state
     this.controlTransitionTime = 0; // Track time since last control change
     this.maxCameraDistance = 15; // Maximum allowed distance between car and camera
+    
+    // Camera shake properties
+    this.cameraShake = {
+      active: false,
+      intensity: 0,
+      decay: 5, // Shake decay rate (units per second)
+      originPosition: new THREE.Vector3(),
+      originRotation: new THREE.Euler()
+    };
   }
   
   // Initialize the Three.js scene
@@ -237,37 +250,59 @@ class Scene {
     this.camera.lookAt(lookTarget);
   }
   
-  // Animation loop
-  animate() {
-    // Calculate delta time
-    const currentTime = performance.now();
-    const deltaTime = currentTime - this.lastTime;
-    this.lastTime = currentTime;
-    
-    // Update FPS counter occasionally
-    this.frameCount++;
-    if (currentTime - this.lastTime >= 1000) {
-      const fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastTime));
-      if (this.fpsElement) {
-        this.fpsElement.textContent = `FPS: ${fps}`;
-      }
-      this.frameCount = 0;
+  /**
+   * Update traffic vehicles based on server data
+   * @param {Array} trafficData - Array of traffic vehicle data from server
+   */
+  updateTraffic(trafficData) {
+    if (this.trafficManager) {
+      this.trafficManager.updateVehicles(trafficData);
     }
+  }
+  
+  /**
+   * Animation loop
+   */
+  animate() {
+    // Setup the next frame
+    requestAnimationFrame(this.animate.bind(this));
     
-    // Update camera position if following a target
-    if (this.cameraTarget && this.cameraTarget.vehicleGroup) {
+    // Calculate delta time
+    const time = performance.now();
+    const deltaTime = (time - this.lastTime) / 1000; // Convert to seconds
+    this.lastTime = time;
+    
+    // Update camera shake
+    this._updateCameraShake(deltaTime);
+    
+    // Update camera follow if a target exists
+    if (this.cameraTarget) {
       this._updateCameraFollow(deltaTime);
     }
     
-    // Update camera shake if active
-    this._updateCameraShake(deltaTime);
+    // Update traffic
+    if (this.trafficManager) {
+      this.trafficManager.update(deltaTime);
+    }
     
     // Render the scene
     this.renderer.render(this.scene, this.camera);
     
-    // Request next frame
-    window.gameScene = this; // Make gameScene accessible globally for collision feedback
-    requestAnimationFrame(this.animate.bind(this));
+    // Update FPS counter
+    this.frameCount++;
+    if (time >= this.lastFpsUpdate + 1000) { // Update every second
+      if (this.fpsElement) {
+        const fps = Math.round((this.frameCount * 1000) / (time - this.lastFpsUpdate));
+        this.fpsElement.textContent = `FPS: ${fps}`;
+        
+        // Color code based on performance
+        if (fps >= 45) this.fpsElement.style.color = '#00ff00'; // Green for good FPS
+        else if (fps >= 30) this.fpsElement.style.color = '#ffff00'; // Yellow for acceptable FPS
+        else this.fpsElement.style.color = '#ff0000'; // Red for poor FPS
+      }
+      this.lastFpsUpdate = time;
+      this.frameCount = 0;
+    }
   }
   
   // Start the animation loop
