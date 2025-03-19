@@ -14,8 +14,9 @@ class WebSocketConnection {
    * @param {function} onPlayerJoin - Callback for player join events
    * @param {function} onPlayerLeave - Callback for player leave events
    * @param {function} onPlayerMove - Callback for player movement updates
+   * @param {function} onServerReconciliation - Callback for server reconciliation (optional)
    */
-  constructor(onPlayerList, onPlayerJoin, onPlayerLeave, onPlayerMove) {
+  constructor(onPlayerList, onPlayerJoin, onPlayerLeave, onPlayerMove, onServerReconciliation) {
     this.ws = null;
     this.connected = false;
     this.id = null;
@@ -31,6 +32,7 @@ class WebSocketConnection {
     this.onPlayerJoin = onPlayerJoin || (() => {});
     this.onPlayerLeave = onPlayerLeave || (() => {});
     this.onPlayerMove = onPlayerMove || (() => {});
+    this.onServerReconciliation = onServerReconciliation || (() => {});
     
     // Connection status display element
     this.statusElement = document.createElement('div');
@@ -128,6 +130,10 @@ class WebSocketConnection {
           
         case 'playerDisconnected':
           this.handlePlayerDisconnectedMessage(message);
+          break;
+          
+        case 'serverReconciliation':
+          this.handleServerReconciliationMessage(message);
           break;
           
         case 'chatMessage':
@@ -232,8 +238,24 @@ class WebSocketConnection {
    * @param {object} message - Player position message data
    */
   handlePlayerPositionMessage(message) {
-    // Forward to callback handler
-    this.onPlayerMove(message.id, message.position, message.rotation, message.speed);
+    // Add interpolation data if not present
+    if (!message.interpolation) {
+      message.interpolation = {
+        startTime: message.timestamp,
+        endTime: message.timestamp + (1000 / this.serverConfig.updateRate)
+      };
+    }
+
+    // Forward to callback handler with enhanced data
+    this.onPlayerMove(
+      message.id,
+      message.position,
+      message.rotation,
+      message.speed,
+      message.sequence,
+      message.timestamp,
+      message.interpolation
+    );
   }
   
   /**
@@ -246,20 +268,59 @@ class WebSocketConnection {
   }
   
   /**
-   * Send position update to server
-   * @param {object} position - Vehicle position
-   * @param {number} rotation - Vehicle rotation angle
-   * @param {number} speed - Vehicle speed
+   * Handle server reconciliation message from server
+   * @param {object} message - Server reconciliation message data
    */
-  sendPosition(position, rotation, speed) {
+  handleServerReconciliationMessage(message) {
+    // If it's not for this client, ignore
+    if (message.id !== this.id) return;
+    
+    console.log(`[NETWORK] Received server reconciliation for sequence ${message.sequence}`);
+    
+    // Forward to the callback handler with enhanced state data
+    this.onServerReconciliation(message.state, message.sequence, message.timestamp);
+  }
+  
+  /**
+   * Send position update to server with sequence number for reconciliation
+   * @param {object} networkState - Vehicle network state including position, rotation, speed, and sequence
+   */
+  sendPosition(networkState) {
     if (!this.connected) return;
     
-    this.sendMessage({
-      type: 'position',
-      position,
-      rotation,
-      speed
-    });
+    console.log('Sending position to server:', networkState);
+    
+    try {
+      // Ensure networkState has all required fields with fallbacks
+      const safeNetworkState = {
+        position: networkState.position || { x: 0, y: 0.5, z: 0 },
+        rotation: networkState.rotation || 0,
+        speed: networkState.speed || 0,
+        sequence: networkState.sequence || 0,
+        controls: networkState.controls || {
+          accelerate: false,
+          brake: false,
+          turnLeft: false, 
+          turnRight: false,
+          handbrake: false
+        },
+        timestamp: Date.now()
+      };
+      
+      const positionMessage = {
+        type: 'position',
+        position: safeNetworkState.position,
+        rotation: safeNetworkState.rotation,
+        speed: safeNetworkState.speed,
+        sequence: safeNetworkState.sequence,
+        controls: safeNetworkState.controls,
+        timestamp: safeNetworkState.timestamp
+      };
+      
+      this.sendMessage(positionMessage);
+    } catch (error) {
+      console.error('Error sending position:', error);
+    }
   }
   
   /**

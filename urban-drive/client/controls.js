@@ -167,13 +167,14 @@ class Controls {
     // For debugging: throttle log messages to avoid console spam
     const currentTime = performance.now();
     if (currentTime - this.lastLogTime > this.logInterval) {
+      // Only log if any control is active
       if (this.keys.up || this.keys.down || this.keys.left || this.keys.right || this.keys.space) {
-        console.log('Control state:', {
-          acceleration: this.keys.up,
-          braking: this.keys.down,
-          steeringLeft: this.keys.left,
-          steeringRight: this.keys.right,
-          handbrake: this.keys.space
+        console.log('Control state in Controls.update():', {
+          up: this.keys.up,
+          down: this.keys.down,
+          left: this.keys.left,
+          right: this.keys.right,
+          space: this.keys.space
         });
         this.lastLogTime = currentTime;
       }

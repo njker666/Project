@@ -120,13 +120,19 @@ const controlIndicators = {
 
 // Update the visual indicators based on control state
 function updateControlIndicators(controlState) {
+  console.log("Control state for indicators:", controlState);
+  
   for (const key in controlIndicators) {
     if (controlIndicators[key]) {
+      console.log(`Control indicator for ${key} exists: ${!!controlIndicators[key]}, value: ${controlState[key]}`);
+      
       if (controlState[key]) {
         controlIndicators[key].classList.add('active');
       } else {
         controlIndicators[key].classList.remove('active');
       }
+    } else {
+      console.error(`Control indicator for ${key} does not exist`);
     }
   }
 }
@@ -142,6 +148,11 @@ function gameLoop(currentTime) {
   
   // Update controls and get current state
   const controlState = controls.update();
+  
+  // Debug logs for car movement
+  if (controlState.up || controlState.down || controlState.left || controlState.right) {
+    console.log(`Car position: ${playerVehicle.state.position.x.toFixed(2)}, ${playerVehicle.state.position.z.toFixed(2)}, speed: ${playerVehicle.state.speed.toFixed(2)}`);
+  }
   
   // Update visual indicators
   updateControlIndicators(controlState);
@@ -172,12 +183,8 @@ function gameLoop(currentTime) {
   
   // Send position updates at a fixed rate
   if (connection.isConnected() && currentTime - lastPositionUpdate > POSITION_UPDATE_INTERVAL) {
-    // Send position to server
-    connection.sendPosition(
-      playerVehicle.state.position,
-      playerVehicle.state.rotation,
-      playerVehicle.state.speed
-    );
+    // Send position to server using vehicle's network state
+    connection.sendPosition(playerVehicle.getNetworkState());
     
     lastPositionUpdate = currentTime;
   }

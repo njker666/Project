@@ -33,10 +33,77 @@ class WebSocketServer {
       pingsMeasured: 0
     };
     
+    // Server-side physics simulation properties
+    this.physicsWorld = this.initializePhysicsWorld();
+    this.lastPhysicsUpdate = Date.now();
+    
     this.setupEventHandlers();
     this.startPeriodicTasks();
     
     console.log(`[WEBSOCKET] WebSocket server initialized, max players: ${config.MAX_PLAYERS}`);
+  }
+  
+  /**
+   * Initialize a simplified physics world for server-side verification
+   */
+  initializePhysicsWorld() {
+    console.log('[PHYSICS] Initializing server-side physics world');
+    
+    // Simplified physics model for server-side validation
+    const physicsParams = {
+      maxSpeed: 30, // Maximum speed in m/s
+      acceleration: 5, // Acceleration in m/s²
+      braking: 8, // Braking in m/s²
+      turnSpeed: 2, // Turn speed in radians/s
+      friction: 0.98 // Ground friction coefficient
+    };
+    
+    return {
+      ...physicsParams,
+      updateVehicle: (vehicle, input, deltaTime) => {
+        if (!vehicle || !input) {
+          console.warn('[PHYSICS] Invalid vehicle or input data');
+          return vehicle;
+        }
+
+        // Ensure controls exist with default values if undefined
+        const controls = input.controls || {
+          accelerate: false,
+          brake: false,
+          turnLeft: false,
+          turnRight: false,
+          handbrake: false
+        };
+        
+        // Create a copy of the vehicle object to avoid modification issues
+        const updatedVehicle = { ...vehicle };
+        
+        // Update speed based on input
+        if (controls.accelerate || controls.up) {
+          updatedVehicle.speed = Math.min(updatedVehicle.speed + physicsParams.acceleration * deltaTime, physicsParams.maxSpeed);
+        } else if (controls.brake || controls.down) {
+          updatedVehicle.speed = Math.max(updatedVehicle.speed - physicsParams.braking * deltaTime, 0);
+        } else {
+          // Apply friction when no input
+          updatedVehicle.speed *= physicsParams.friction;
+        }
+
+        // Update rotation based on input
+        if (controls.turnLeft || controls.left) {
+          updatedVehicle.rotation -= physicsParams.turnSpeed * deltaTime;
+        }
+        if (controls.turnRight || controls.right) {
+          updatedVehicle.rotation += physicsParams.turnSpeed * deltaTime;
+        }
+
+        // Update position based on speed and rotation
+        updatedVehicle.x += Math.cos(updatedVehicle.rotation) * updatedVehicle.speed * deltaTime;
+        updatedVehicle.y += Math.sin(updatedVehicle.rotation) * updatedVehicle.speed * deltaTime;
+        updatedVehicle.z = updatedVehicle.z || 0; // Ensure z is defined
+
+        return updatedVehicle;
+      }
+    };
   }
   
   /**
@@ -55,15 +122,25 @@ class WebSocketServer {
       const clientId = this.nextClientId++;
       const clientIp = req.socket.remoteAddress;
       
+      // Initialize client state with default values
+      const clientState = {
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: 0,
+        speed: 0,
+        sequence: 0,
+        timestamp: Date.now()
+      };
+      
       // Store client information
       this.clients.set(ws, {
         id: clientId,
         ip: clientIp,
+        ws: ws, // Explicitly store reference to the WebSocket
         lastPing: Date.now(),
         latency: 0,
-        position: { x: 0, y: 0, z: 0 },
-        rotation: 0,
-        speed: 0,
+        state: clientState,
         connected: true,
         connectTime: Date.now()
       });
@@ -165,19 +242,72 @@ class WebSocketServer {
           break;
           
         case 'position':
-          // Update client position data
-          client.position = data.position;
-          client.rotation = data.rotation;
-          client.speed = data.speed;
-          
-          // Broadcast updated position to other clients
-          this.broadcastToOthers(ws, {
-            type: 'playerPosition',
-            id: client.id,
-            position: client.position,
-            rotation: client.rotation,
-            speed: client.speed
-          });
+          try {
+            // Validate position data with more lenient checks and default values
+            if (!data.position) {
+              data.position = { x: 0, y: 0.5, z: 0 };
+            } else {
+              // Ensure the position has numeric values
+              data.position.x = typeof data.position.x === 'number' ? data.position.x : 0;
+              data.position.y = typeof data.position.y === 'number' ? data.position.y : 0.5;
+              data.position.z = typeof data.position.z === 'number' ? data.position.z : 0;
+            }
+
+            // Ensure other required properties with defaults
+            data.rotation = typeof data.rotation === 'number' ? data.rotation : 0;
+            data.speed = typeof data.speed === 'number' ? data.speed : 0;
+            data.sequence = typeof data.sequence === 'number' ? data.sequence : 0;
+            
+            // Add controls if missing
+            if (!data.controls) {
+              data.controls = {
+                accelerate: false,
+                brake: false,
+                turnLeft: false,
+                turnRight: false,
+                handbrake: false
+              };
+            }
+
+            // Store client input for server-side physics
+            client.lastInput = data;
+            client.lastInputTime = Date.now();
+            
+            // Update client state with position data
+            client.state = {
+              x: data.position.x,
+              y: data.position.y,
+              z: data.position.z,
+              rotation: data.rotation,
+              speed: data.speed,
+              sequence: data.sequence,
+              timestamp: Date.now()
+            };
+            
+            // Process server-side physics
+            this.processServerPhysics(client);
+            
+            // Broadcast updated position to other clients with interpolation data
+            this.broadcastToOthers(ws, {
+              type: 'playerPosition',
+              id: client.id,
+              position: {
+                x: client.state.x,
+                y: client.state.y,
+                z: client.state.z
+              },
+              rotation: client.state.rotation,
+              speed: client.state.speed,
+              sequence: client.state.sequence,
+              timestamp: client.state.timestamp,
+              interpolation: {
+                startTime: client.state.timestamp,
+                endTime: client.state.timestamp + (1000 / config.UPDATE_RATE)
+              }
+            });
+          } catch (error) {
+            console.error(`[WEBSOCKET] Error processing position update from client #${client.id}:`, error);
+          }
           break;
           
         case 'chat':
@@ -194,6 +324,62 @@ class WebSocketServer {
       }
     } catch (error) {
       console.error('[WEBSOCKET] Error parsing message:', error.message);
+    }
+  }
+  
+  /**
+   * Process server-side physics simulation for a client
+   * @param {object} client - Client data object
+   */
+  processServerPhysics(client) {
+    if (!client.lastInput || !this.physicsWorld) return;
+
+    try {
+      const deltaTime = (Date.now() - client.lastInputTime) / 1000;
+      const serverState = this.physicsWorld.updateVehicle(
+        { ...client.state },
+        client.lastInput,
+        deltaTime
+      );
+
+      // Check for significant discrepancies between client and server state
+      const positionDiff = Math.sqrt(
+        Math.pow(serverState.x - client.state.x, 2) +
+        Math.pow(serverState.y - client.state.y, 2) +
+        Math.pow(serverState.z - client.state.z, 2)
+      );
+      
+      const rotationDiff = Math.abs(serverState.rotation - client.state.rotation);
+      const speedDiff = Math.abs(serverState.speed - client.state.speed);
+
+      // If there's a significant discrepancy, send reconciliation message
+      if (positionDiff > 0.5 || rotationDiff > 0.1 || speedDiff > 1) {
+        const reconciliationMessage = {
+          type: 'serverReconciliation',
+          sequence: client.state.sequence,
+          state: {
+            position: {
+              x: serverState.x,
+              y: serverState.y,
+              z: serverState.z
+            },
+            rotation: serverState.rotation,
+            speed: serverState.speed
+          },
+          timestamp: Date.now()
+        };
+
+        if (client.ws && client.ws.readyState === 1) { // WebSocket.OPEN = 1
+          client.ws.send(JSON.stringify(reconciliationMessage));
+          
+          // Update client state to match server
+          client.state = { ...serverState };
+        } else {
+          console.warn(`[WEBSOCKET] Can't send reconciliation: WebSocket not available for client #${client.id}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[WEBSOCKET] Error in server physics for client #${client.id}:`, error);
     }
   }
   
@@ -253,21 +439,41 @@ class WebSocketServer {
   broadcastPlayerList() {
     const players = [];
     
-    // Create array of player data
+    // Create array of player data with interpolation info
     this.clients.forEach((client) => {
+      // Skip if client state is not properly initialized
+      if (!client.state) {
+        console.warn(`[WEBSOCKET] Client #${client.id} has no state initialized`);
+        return;
+      }
+
       players.push({
         id: client.id,
-        position: client.position,
-        rotation: client.rotation,
-        speed: client.speed
+        position: {
+          x: client.state.x,
+          y: client.state.y,
+          z: client.state.z
+        },
+        rotation: client.state.rotation,
+        speed: client.state.speed,
+        sequence: client.state.sequence,
+        timestamp: client.state.timestamp,
+        interpolation: {
+          startTime: client.state.timestamp,
+          endTime: client.state.timestamp + (1000 / config.UPDATE_RATE)
+        }
       });
     });
     
-    // Send player list to all clients
-    this.broadcastToAll({
-      type: 'playerList',
-      players: players
-    });
+    // Only broadcast if we have players to send
+    if (players.length > 0) {
+      // Send player list to all clients
+      this.broadcastToAll({
+        type: 'playerList',
+        players: players,
+        timestamp: Date.now()
+      });
+    }
   }
   
   /**

@@ -44,6 +44,13 @@ class Vehicle {
       lastCollision: null      // Information about the last collision
     };
     
+    // Client-side prediction and reconciliation properties
+    this.inputHistory = [];    // History of inputs for reconciliation
+    this.historyMaxSize = 100; // Maximum number of inputs to store
+    this.lastProcessedServerState = null; // Last state acknowledged by the server
+    this.pendingInputs = [];   // Inputs not yet acknowledged by the server
+    this.sequence = 0;         // Sequence number for tracking inputs
+    
     // Ensure Y position is at fixed height
     this.state.position.y = this.fixedHeight;
     
@@ -186,66 +193,126 @@ class Vehicle {
   
   // Initialize Oimo.js physics
   _initPhysics() {
-    // Create world
-    this.world = new OIMO.World({
-      timestep: 1/60,
-      iterations: 8,
-      broadphase: 2, // SAP
-      worldscale: 1,
-      random: true,
-      info: false,
-      gravity: [0, -9.8, 0]
-    });
-    
-    // Create ground
-    this.ground = this.world.add({
-      type: 'box',
-      size: [1000, 1, 1000],
-      pos: [0, -0.5, 0],
-      rot: [0, 0, 0],
-      move: false,
-      density: 1,
-      friction: this.params.friction,
-      restitution: 0.1,
-      belongsTo: 1,
-      collidesWith: 0xffffffff
-    });
-    
-    // Create vehicle body - using a kinematic body that follows our manual positioning
-    this.body = this.world.add({
-      type: 'box',
-      size: [2, 1, 4],
-      pos: [this.state.position.x, this.fixedHeight, this.state.position.z],
-      rot: [0, this.state.rotation, 0],
-      move: true,
-      kinematic: true, // Make it kinematic so we can manually position it
-      density: this.params.mass / 8, // Approx volume of the box
-      friction: 0.5,
-      restitution: 0.2,
-      belongsTo: 2,
-      collidesWith: 0xffffffff
-    });
-    
-    // Completely restrict vertical movement for maximum stability
-    this.body.setupMass({
-      type: 1, // Mass distribution type
-      linearFactor: [1, 0, 1], // No Y movement at all
-      angularFactor: [0, 1, 0]  // Only allow rotation around Y axis (steering)
-    });
-    
-    // Add damping to make movement more responsive
-    this.body.linearDamping = 0.5;
-    this.body.angularDamping = 0.5;
-    
-    console.log('Physics initialized');
+    try {
+      // Create world
+      this.world = new OIMO.World({
+        timestep: 1/60,
+        iterations: 8,
+        broadphase: 2, // SAP
+        worldscale: 1,
+        random: true,
+        info: false,
+        gravity: [0, -9.8, 0]
+      });
+      
+      // Create ground
+      this.ground = this.world.add({
+        type: 'box', // Use primitive type
+        size: [1000, 1, 1000],
+        pos: [0, -0.5, 0],
+        rot: [0, 0, 0],
+        move: false,
+        density: 1,
+        friction: this.params.friction,
+        restitution: 0.1,
+        belongsTo: 1,
+        collidesWith: 0xffffffff
+      });
+      
+      // Create vehicle body - using a kinematic body that follows our manual positioning
+      this.body = this.world.add({
+        type: 'box', // Use primitive type
+        size: [2, 1, 4],
+        pos: [this.state.position.x, this.fixedHeight, this.state.position.z],
+        rot: [0, this.state.rotation, 0],
+        move: true,
+        kinematic: true, // Make it kinematic so we can manually position it
+        density: this.params.mass / 8, // Approx volume of the box
+        friction: 0.5,
+        restitution: 0.2,
+        belongsTo: 2,
+        collidesWith: 0xffffffff
+      });
+      
+      // Completely restrict vertical movement for maximum stability
+      this.body.setupMass({
+        type: 1, // Mass distribution type
+        linearFactor: [1, 0, 1], // No Y movement at all
+        angularFactor: [0, 1, 0]  // Only allow rotation around Y axis (steering)
+      });
+      
+      // Add damping to make movement more responsive
+      this.body.linearDamping = 0.5;
+      this.body.angularDamping = 0.5;
+      
+      console.log('Physics initialized');
+    } catch (error) {
+      console.error('Error initializing physics:', error);
+      // Create a fallback minimal physics setup if the full setup fails
+      this.world = null;
+      this.ground = null;
+      this.body = null;
+    }
   }
   
   // Update vehicle position and rotation based on controls
   update(controls, deltaTime, collision = null) {
     if (!controls || !deltaTime) return;
     
+    // Debug log the controls received
+    console.log('Vehicle update with controls:', controls);
+    
     // Convert delta time to seconds
     const dt = deltaTime / 1000;
+    
+    // Create an input object to track for prediction and reconciliation
+    const input = {
+      sequence: this.sequence++,
+      controls: { 
+        // Support both control formats - original and normalized
+        up: controls.up === true,
+        down: controls.down === true,
+        left: controls.left === true,
+        right: controls.right === true,
+        space: controls.space === true,
+        // Also include normalized controls
+        accelerate: controls.up === true,
+        brake: controls.down === true,
+        turnLeft: controls.left === true,
+        turnRight: controls.right === true,
+        handbrake: controls.space === true
+      },
+      deltaTime: dt,
+      timestamp: Date.now(),
+      collision: collision ? { ...collision } : null
+    };
+    
+    // Log what we're processing
+    console.log('Processing input:', input.controls);
+    
+    // Save input to history
+    this.inputHistory.push(input);
+    
+    // Limit history size
+    if (this.inputHistory.length > this.historyMaxSize) {
+      this.inputHistory.shift();
+    }
+    
+    // Add input to pending inputs awaiting server confirmation
+    this.pendingInputs.push(input);
+    
+    // Process the input immediately for client-side prediction
+    this._processInput(input);
+    
+    // After processing, log the current state
+    console.log('After processing input - position:', this.state.position, 'speed:', this.state.speed, 'rotation:', this.state.rotation);
+  }
+  
+  // Process a single input to update vehicle state
+  _processInput(input) {
+    const controls = input.controls;
+    const dt = input.deltaTime;
+    const collision = input.collision;
     
     // Handle collision if one occurred
     if (collision) {
@@ -258,7 +325,7 @@ class Vehicle {
     this._updateVisualEffects(dt);
     
     // Handle acceleration and braking
-    if (controls.up) {
+    if (controls.accelerate || controls.up) {
       // Calculate a non-linear acceleration factor - higher at low speeds, lower at high speeds
       const currentSpeedRatio = Math.abs(this.state.speed) / this.params.maxSpeed;
       const accelerationFactor = 1 - (currentSpeedRatio * 0.7); // Decreases acceleration as speed increases
@@ -270,7 +337,7 @@ class Vehicle {
       if (this.state.speed > this.params.maxSpeed) {
         this.state.speed = this.params.maxSpeed;
       }
-    } else if (controls.down) {
+    } else if (controls.brake || controls.down) {
       // Brake if moving forward
       if (this.state.speed > 0) {
         this.state.speed -= this.params.braking * dt;
@@ -310,10 +377,10 @@ class Vehicle {
       // Calculate steering factor based on speed (less effective at high speeds)
       const speedFactor = 1 - (Math.min(Math.abs(this.state.speed), this.params.maxSpeed) / this.params.maxSpeed) * 0.3;
       
-      if (controls.left) {
+      if (controls.turnLeft || controls.left) {
         this.state.angularVelocity = this.params.steeringSpeed * speedFactor;
         steeringAngle = Math.PI / 6; // +30 degrees wheel rotation for LEFT turn
-      } else if (controls.right) {
+      } else if (controls.turnRight || controls.right) {
         this.state.angularVelocity = -this.params.steeringSpeed * speedFactor;
         steeringAngle = -Math.PI / 6; // -30 degrees wheel rotation for RIGHT turn
       } else {
@@ -349,20 +416,28 @@ class Vehicle {
     // Update rotation - ONLY around Y axis
     this.state.rotation += turnRate;
     
-    // SIMPLIFIED APPROACH: Update the vehicle position and rotation directly without physics
-    // This ensures we have exact control over the car's orientation
+    // Update the vehicle mesh position and rotation
     this.vehicleGroup.position.copy(this.state.position);
     
     // Create a new quaternion from Euler rotation that ONLY rotates around Y axis
     const rotation = new THREE.Euler(0, this.state.rotation, 0);
     this.vehicleGroup.quaternion.setFromEuler(rotation);
     
-    // Update the physics body to match our simplified movement
-    this.body.position.set(this.state.position.x, this.fixedHeight, this.state.position.z);
-    this.body.quaternion.setFromEuler(0, this.state.rotation, 0);
-    
-    // Step the physics world
-    this.world.step();
+    // Update the physics body to match our simplified movement if it exists
+    if (this.body) {
+      try {
+        this.body.position.set(this.state.position.x, this.fixedHeight, this.state.position.z);
+        this.body.rotation.set(0, this.state.rotation, 0);
+        this.body.awake();
+        
+        // Step the physics world if it exists
+        if (this.world) {
+          this.world.step();
+        }
+      } catch (error) {
+        console.warn('Error updating physics body in process input:', error);
+      }
+    }
     
     // Rotate wheels based on steering angle and vehicle speed
     // Rotate front wheels for steering
@@ -375,6 +450,112 @@ class Vehicle {
     this.wheels.forEach(wheel => {
       wheel.rotation.x += wheelRotationSpeed;
     });
+  }
+  
+  // Apply server reconciliation when receiving an authoritative state
+  applyServerReconciliation(serverState, sequence, timestamp) {
+    // Store this state as the last processed server state
+    this.lastProcessedServerState = { ...serverState };
+    
+    // Find the position in the pending inputs array for the acknowledged input
+    const ackIndex = this.pendingInputs.findIndex(input => input.sequence === sequence);
+    
+    if (ackIndex !== -1) {
+      // Remove all inputs up to and including the acknowledged one
+      this.pendingInputs.splice(0, ackIndex + 1);
+    }
+    
+    // Calculate discrepancy between server and client state
+    const positionDiscrepancy = new THREE.Vector3(
+      serverState.position.x - this.state.position.x,
+      0, // We don't reconcile Y position
+      serverState.position.z - this.state.position.z
+    );
+    
+    const rotationDiscrepancy = serverState.rotation - this.state.rotation;
+    const speedDiscrepancy = serverState.speed - this.state.speed;
+    
+    // Check if significant discrepancy exists
+    const positionDiscrepancyMagnitude = positionDiscrepancy.length();
+    const significantDiscrepancy = positionDiscrepancyMagnitude > 0.5 || 
+                                 Math.abs(rotationDiscrepancy) > 0.1 || 
+                                 Math.abs(speedDiscrepancy) > 2;
+    
+    if (significantDiscrepancy) {
+      console.log(`[RECONCILIATION] Significant discrepancy detected: 
+        Position: ${positionDiscrepancyMagnitude.toFixed(2)} units, 
+        Rotation: ${Math.abs(rotationDiscrepancy).toFixed(2)} rad, 
+        Speed: ${Math.abs(speedDiscrepancy).toFixed(2)} km/h`);
+      
+      // Set state to the server-provided values
+      this.state.position.set(
+        serverState.position.x,
+        this.fixedHeight,
+        serverState.position.z
+      );
+      this.state.rotation = serverState.rotation;
+      this.state.speed = serverState.speed;
+      
+      // Update the vehicle mesh to match the corrected state
+      this.vehicleGroup.position.copy(this.state.position);
+      const rotation = new THREE.Euler(0, this.state.rotation, 0);
+      this.vehicleGroup.quaternion.setFromEuler(rotation);
+      
+      // Re-apply pending inputs to bring the state back up-to-date
+      this.pendingInputs.forEach(input => {
+        this._processInput(input);
+      });
+    }
+  }
+  
+  // Update other player's vehicle position with interpolation
+  updateOtherPlayerPosition(position, rotation, speed, sequence, timestamp, interpolation) {
+    // Store the target state for interpolation
+    this.targetState = {
+      position: new THREE.Vector3(position.x, this.fixedHeight, position.z),
+      rotation: rotation,
+      speed: speed,
+      sequence: sequence,
+      timestamp: timestamp,
+      interpolation: interpolation
+    };
+
+    // If this is the first update, set current state to target state
+    if (!this.currentState) {
+      this.currentState = { ...this.targetState };
+      this.vehicleGroup.position.copy(this.currentState.position);
+      this.vehicleGroup.rotation.y = this.currentState.rotation;
+    }
+  }
+
+  // Update interpolated position for other players
+  updateInterpolation(deltaTime) {
+    if (!this.targetState || !this.currentState) return;
+
+    const now = Date.now();
+    const interpolationProgress = (now - this.targetState.interpolation.startTime) / 
+                                 (this.targetState.interpolation.endTime - this.targetState.interpolation.startTime);
+
+    if (interpolationProgress >= 1) {
+      // Interpolation complete, update to target state
+      this.currentState = { ...this.targetState };
+      this.vehicleGroup.position.copy(this.currentState.position);
+      this.vehicleGroup.rotation.y = this.currentState.rotation;
+      return;
+    }
+
+    // Interpolate position
+    this.currentState.position.lerp(this.targetState.position, interpolationProgress);
+
+    // Interpolate rotation (using shortest path)
+    let rotationDiff = this.targetState.rotation - this.currentState.rotation;
+    while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
+    while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+    this.currentState.rotation += rotationDiff * interpolationProgress;
+
+    // Update visual representation
+    this.vehicleGroup.position.copy(this.currentState.position);
+    this.vehicleGroup.rotation.y = this.currentState.rotation;
   }
   
   // Handle collision response
@@ -531,6 +712,35 @@ class Vehicle {
   // Get information about the last collision
   getLastCollision() {
     return this.state.lastCollision;
+  }
+  
+  // Get the current position and state for network updates
+  getNetworkState() {
+    return {
+      position: {
+        x: this.state.position.x || 0,
+        y: this.state.position.y || this.fixedHeight || 0.5,
+        z: this.state.position.z || 0
+      },
+      rotation: this.state.rotation || 0,
+      speed: this.state.speed || 0,
+      sequence: this.sequence - 1, // Latest sequence number
+      timestamp: Date.now(),
+      controls: {
+        // Include both control formats
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        space: false,
+        // Normalized controls
+        accelerate: false,
+        brake: false,
+        turnLeft: false,
+        turnRight: false,
+        handbrake: false
+      }
+    };
   }
 }
 
