@@ -487,6 +487,16 @@ class Vehicle {
         Rotation: ${Math.abs(rotationDiscrepancy).toFixed(2)} rad, 
         Speed: ${Math.abs(speedDiscrepancy).toFixed(2)} km/h`);
       
+      // Dispatch a position error event for test suite
+      const positionErrorEvent = new CustomEvent('positionerror', {
+        detail: {
+          discrepancy: positionDiscrepancyMagnitude,
+          rotation: Math.abs(rotationDiscrepancy),
+          speed: Math.abs(speedDiscrepancy)
+        }
+      });
+      window.dispatchEvent(positionErrorEvent);
+      
       // Set state to the server-provided values
       this.state.position.set(
         serverState.position.x,

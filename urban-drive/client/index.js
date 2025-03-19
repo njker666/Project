@@ -19,6 +19,8 @@ import HUD from './ui/hud.js';
 import WebSocketConnection from './network/connection.js';
 // Import the Other Players Manager
 import OtherPlayersManager from './rendering/otherPlayers.js';
+// Import the Test Suite for final testing and debugging
+import testSuite from './test.js';
 
 // Log startup message
 console.log('Urban Drive is starting up...');
@@ -65,6 +67,9 @@ const connection = new WebSocketConnection(
     
     // Update HUD player count
     hud.updatePlayerCount(playerList.length);
+    
+    // Update test suite with player count for multiplayer test
+    window.otherPlayersCount = otherPlayersList.length;
   },
   // Player join handler
   (id, position, rotation) => {
@@ -78,6 +83,9 @@ const connection = new WebSocketConnection(
     hud.updatePlayerCount(otherPlayers.getPlayerCount() + 1); // +1 for local player
     
     console.log(`[MULTIPLAYER] Player #${id} joined the game`);
+    
+    // Update test suite with player count for multiplayer test
+    window.otherPlayersCount = otherPlayers.getPlayerCount();
   },
   // Player leave handler
   (id) => {
@@ -91,6 +99,9 @@ const connection = new WebSocketConnection(
     hud.updatePlayerCount(otherPlayers.getPlayerCount() + 1); // +1 for local player
     
     console.log(`[MULTIPLAYER] Player #${id} left the game`);
+    
+    // Update test suite with player count for multiplayer test
+    window.otherPlayersCount = otherPlayers.getPlayerCount();
   },
   // Player movement handler
   (id, position, rotation, speed) => {
@@ -132,25 +143,24 @@ const controlIndicators = {
 
 // Update the visual indicators based on control state
 function updateControlIndicators(controlState) {
-  console.log("Control state for indicators:", controlState);
-  
   for (const key in controlIndicators) {
     if (controlIndicators[key]) {
-      console.log(`Control indicator for ${key} exists: ${!!controlIndicators[key]}, value: ${controlState[key]}`);
-      
       if (controlState[key]) {
         controlIndicators[key].classList.add('active');
       } else {
         controlIndicators[key].classList.remove('active');
       }
-    } else {
-      console.error(`Control indicator for ${key} does not exist`);
     }
   }
 }
 
 // Last timestamp for calculating delta time
 let lastTime = performance.now();
+
+// Collision and network error trackers for test suite
+let collisionCount = 0;
+let positionErrorCount = 0;
+let networkErrorCount = 0;
 
 // Game loop function
 function gameLoop(currentTime) {
@@ -161,16 +171,22 @@ function gameLoop(currentTime) {
   // Update controls and get current state
   const controlState = controls.update();
   
-  // Debug logs for car movement
-  if (controlState.up || controlState.down || controlState.left || controlState.right) {
-    console.log(`Car position: ${playerVehicle.state.position.x.toFixed(2)}, ${playerVehicle.state.position.z.toFixed(2)}, speed: ${playerVehicle.state.speed.toFixed(2)}`);
-  }
-  
   // Update visual indicators
   updateControlIndicators(controlState);
   
   // Check for collisions
   const collision = collisionManager.checkCollisions(playerVehicle);
+  
+  // Update test suite if a collision occurred
+  if (collision) {
+    window.testCollisionOccurred = true;
+    collisionCount++;
+    
+    // Update test metrics
+    testSuite.updateMetrics({
+      collisions: collisionCount
+    });
+  }
   
   // Update vehicle physics with collision info
   playerVehicle.update(controlState, deltaTime, collision);
@@ -191,6 +207,11 @@ function gameLoop(currentTime) {
     if (hud.updateNetworkLatency) {
       hud.updateNetworkLatency(connection.getLatency());
     }
+    
+    // Update test suite with latency metric
+    testSuite.updateMetrics({
+      latency: connection.getLatency()
+    });
   }
   
   // Send position updates at a fixed rate
@@ -204,9 +225,28 @@ function gameLoop(currentTime) {
   // Update other players
   otherPlayers.update(deltaTime / 1000);
   
+  // Update test suite
+  testSuite.update();
+  
   // Request next frame
   requestAnimationFrame(gameLoop);
 }
+
+// Listen for WebSocket errors to update test metrics
+window.addEventListener('websocketerror', () => {
+  networkErrorCount++;
+  testSuite.updateMetrics({
+    networkErrors: networkErrorCount
+  });
+});
+
+// Listen for position reconciliation errors to update test metrics
+window.addEventListener('positionerror', () => {
+  positionErrorCount++;
+  testSuite.updateMetrics({
+    positionErrors: positionErrorCount
+  });
+});
 
 // Start the animation loop for rendering
 gameScene.start();
@@ -225,4 +265,5 @@ console.log('WebSocket connection established for multiplayer');
 console.log('Players joining the game will be visible as colored cars');
 console.log('Vehicle position is synchronized with other players');
 console.log('Traffic system is active - AI vehicles moving on roads');
-console.log('Next step: Final Testing and Debugging'); 
+console.log('Test suite initialized - accessible via window.testSuite');
+console.log('Final Testing and Debugging in progress - use test dashboard to run tests'); 

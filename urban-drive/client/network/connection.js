@@ -187,6 +187,15 @@ class WebSocketConnection {
   onError(error) {
     console.error('[NETWORK] WebSocket error:', error);
     this.updateStatusDisplay('error');
+    
+    // Dispatch a websocket error event for test suite
+    const wsErrorEvent = new CustomEvent('websocketerror', {
+      detail: {
+        message: 'WebSocket connection error',
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(wsErrorEvent);
   }
   
   /**
