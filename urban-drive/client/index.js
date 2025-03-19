@@ -13,6 +13,8 @@ import Controls from './controls.js';
 import Vehicle from './physics/vehicle.js';
 // Import the CollisionManager for handling building collisions
 import CollisionManager from './physics/collisionManager.js';
+// Import the HUD class for UI elements
+import HUD from './ui/hud.js';
 
 // Log startup message
 console.log('Urban Drive is starting up...');
@@ -40,6 +42,9 @@ collisionManager.setBuildingData(cityBuildingData);
 // Toggle collision debug mode (uncomment for debugging)
 // collisionManager.setDebugMode(true);
 
+// Initialize the HUD
+const hud = new HUD();
+
 // Get control indicator elements
 const controlIndicators = {
   up: document.getElementById('control-up'),
@@ -48,62 +53,6 @@ const controlIndicators = {
   right: document.getElementById('control-right'),
   space: document.getElementById('control-space')
 };
-
-// Create speed display
-const speedDisplay = document.createElement('div');
-speedDisplay.id = 'speed-display';
-speedDisplay.style.position = 'absolute';
-speedDisplay.style.top = '75px';
-speedDisplay.style.left = '10px';
-speedDisplay.style.color = 'white';
-speedDisplay.style.fontFamily = 'monospace';
-speedDisplay.style.fontSize = '14px';
-speedDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-speedDisplay.style.padding = '5px';
-speedDisplay.style.borderRadius = '3px';
-speedDisplay.textContent = 'Speed: 0 km/h';
-document.body.appendChild(speedDisplay);
-
-// Create district info display
-const districtDisplay = document.createElement('div');
-districtDisplay.id = 'district-display';
-districtDisplay.style.position = 'absolute';
-districtDisplay.style.top = '110px';
-districtDisplay.style.left = '10px';
-districtDisplay.style.color = 'white';
-districtDisplay.style.fontFamily = 'monospace';
-districtDisplay.style.fontSize = '14px';
-districtDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-districtDisplay.style.padding = '5px';
-districtDisplay.style.borderRadius = '3px';
-districtDisplay.innerHTML = `
-  <p>City Districts:</p>
-  <ul style="padding-left: 15px; margin: 5px 0;">
-    <li>Downtown: Northwest (-100, -100)</li>
-    <li>Suburbs: Northeast (100, -100)</li>
-    <li>Industrial: Southeast (100, 100)</li>
-    <li>Waterfront: Southwest (-100, 150)</li>
-  </ul>
-  <p>Drive around to explore!</p>
-`;
-document.body.appendChild(districtDisplay);
-
-// Create collision status display
-const collisionDisplay = document.createElement('div');
-collisionDisplay.id = 'collision-display';
-collisionDisplay.style.position = 'absolute';
-collisionDisplay.style.top = '240px';
-collisionDisplay.style.left = '10px';
-collisionDisplay.style.color = 'white';
-collisionDisplay.style.fontFamily = 'monospace';
-collisionDisplay.style.fontSize = '14px';
-collisionDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-collisionDisplay.style.padding = '5px';
-collisionDisplay.style.borderRadius = '3px';
-collisionDisplay.style.opacity = '0';
-collisionDisplay.style.transition = 'opacity 0.3s';
-collisionDisplay.textContent = 'COLLISION!';
-document.body.appendChild(collisionDisplay);
 
 // Update the visual indicators based on control state
 function updateControlIndicators(controlState) {
@@ -115,30 +64,6 @@ function updateControlIndicators(controlState) {
         controlIndicators[key].classList.remove('active');
       }
     }
-  }
-}
-
-// Update the speed display
-function updateSpeedDisplay(speed) {
-  speedDisplay.textContent = `Speed: ${Math.abs(speed).toFixed(1)} km/h`;
-  
-  // Change color based on speed
-  if (Math.abs(speed) > 80) {
-    speedDisplay.style.color = '#ff5555'; // Red when speeding
-  } else if (Math.abs(speed) > 50) {
-    speedDisplay.style.color = '#ffff55'; // Yellow at medium speed
-  } else {
-    speedDisplay.style.color = 'white'; // White at normal speed
-  }
-}
-
-// Update collision status display
-function updateCollisionDisplay(isColliding) {
-  if (isColliding) {
-    collisionDisplay.style.opacity = '1';
-    collisionDisplay.style.color = '#ff5555'; // Red color for collision
-  } else {
-    collisionDisplay.style.opacity = '0';
   }
 }
 
@@ -166,9 +91,13 @@ function gameLoop(currentTime) {
   // Update collision effects
   collisionManager.update(deltaTime);
   
-  // Update UI displays
-  updateSpeedDisplay(playerVehicle.state.speed);
-  updateCollisionDisplay(playerVehicle.isColliding());
+  // Update HUD elements
+  hud.updateSpeed(playerVehicle.state.speed);
+  hud.updateMiniMap(playerVehicle.state.position, playerVehicle.state.rotation);
+  hud.updateCollisionFeedback(playerVehicle.isColliding(), playerVehicle.getLastCollision());
+  
+  // Update trip meter with vehicle position
+  hud.updateTripMeter(playerVehicle.state.position, deltaTime);
   
   // Request next frame
   requestAnimationFrame(gameLoop);
@@ -186,4 +115,5 @@ console.log('Keyboard controls initialized - use Arrow keys or WASD to control')
 console.log('Vehicle created - blue car with physics-based movement');
 console.log('Collision detection active - car will collide with buildings');
 console.log('FPS counter is active - should maintain at least 30 FPS');
-console.log('Next step: Create a diverse city layout'); 
+console.log('HUD elements created - speedometer and mini-map visible');
+console.log('Next step: Set up the server with Node.js and Express'); 
