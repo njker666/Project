@@ -379,15 +379,20 @@ Date: [Current Date]
 ### What was accomplished:
 - Created a comprehensive HUD (Heads-Up Display) system:
   - Implemented a modular `HUD` class in `client/ui/hud.js` to manage all UI elements
-  - Added a stylish speedometer at the bottom center with:
-    - Digital speed display with km/h unit
-    - Visual speed bar that changes color based on speed (green, orange, red)
-    - Clean, modern visual design with semi-transparent background
-  - Created a mini-map in the bottom-right corner showing:
+  - Added a realistic analog speedometer with:
+    - Proper bottom-left (0 km/h) to bottom-right (140 km/h) layout
+    - Cyan-colored speed numbers with major and minor tick marks
+    - Smooth, red needle that moves clockwise as speed increases
+    - Digital speed display with one decimal place
+  - Created an interactive mini-map in the bottom-right corner showing:
     - Top-down view of the city with district colors
     - Road grid network for navigation
     - Player position and rotation as a red triangle
     - District labels for easy orientation
+  - Added a functional trip meter that:
+    - Tracks real distance traveled by the vehicle
+    - Shows appropriate units (meters/kilometers) based on distance
+    - Updates dynamically with vehicle movement
   - Added an interactive menu system with:
     - Menu button in the top-right corner with hover effects
     - Pop-up menu panel with options (Continue, Restart, Controls, Settings)
@@ -400,21 +405,24 @@ Date: [Current Date]
   - Connected speedometer to the vehicle's speed
   - Updated mini-map with player's position and rotation
   - Linked collision feedback to the vehicle's collision state
-- Removed old UI elements and standardized the UI appearance
+  - Connected trip meter to track actual distance traveled
 
 ### Challenges and Solutions:
+- **Challenge**: Creating a correctly positioned speedometer with needle moving in the right direction  
+  **Solution**: Implemented custom angle calculations with proper clockwise movement
+- **Challenge**: Making the minimap car icon correctly reflect the vehicle's orientation  
+  **Solution**: Fixed the rotation calculation to match the game world orientation
+- **Challenge**: Implementing a realistic trip meter that tracked actual distance  
+  **Solution**: Used position tracking with distance calculations, adding appropriate scaling and format handling
 - **Challenge**: Creating a non-intrusive UI that provides information without cluttering the screen  
   **Solution**: Used semi-transparent elements with modern styling and strategic placement
-- **Challenge**: Implementing a mini-map that accurately reflects the player's position in the world  
-  **Solution**: Created a coordinate mapping system to convert world positions to mini-map pixels
-- **Challenge**: Making interactive UI elements work with a full-screen canvas  
-  **Solution**: Used pointer-events CSS property to make specific elements interactive while keeping others non-interfering
 - **Challenge**: Providing useful collision feedback without being distracting  
   **Solution**: Implemented subtle screen flash and centered text that appears only during collisions
 
 ### Validation:
-- Verified the speedometer updates correctly based on vehicle speed and changes color appropriately
+- Verified the speedometer correctly displays speed and the needle moves clockwise from 0 to 140
 - Confirmed the mini-map shows the player's position and rotation accurately as they drive around
+- Tested the trip meter to ensure it increases correctly as the vehicle travels
 - Tested the menu button and panel to ensure they open and close correctly
 - Validated collision feedback appearance during impacts of different intensities
 - Ensured all UI elements scale and position correctly with different window sizes
@@ -425,7 +433,7 @@ Date: [Current Date]
 - Consider adding more advanced UI features like:
   - Damage indicator for the vehicle
   - Lap timer or mission objectives
-  - Minimap enhancements to show other players or traffic
+  - Additional minimap enhancements to show other players or traffic
 
 ### Architecture Notes:
 - The HUD system follows a modular design with clear separation of concerns:
@@ -433,3 +441,144 @@ Date: [Current Date]
   - Each UI component has dedicated creation and update methods
   - Game loop only needs to call update methods with relevant data
   - Styling is handled inline for simplicity and encapsulation
+
+## Step 9: Set Up the Server with Node.js and Express (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Enhanced the existing `server.js` file in the `server` directory with:
+  - Comprehensive performance monitoring capabilities
+  - Middleware for tracking request/response times
+  - Metrics collection for latency, request count, and errors
+  - CPU and memory usage monitoring
+  - Automatic alerting for requests exceeding latency thresholds
+- Created a health metrics API endpoint at `/api/health` that provides:
+  - Server status and uptime
+  - Average and maximum response times
+  - Request and error counts
+  - Active connection tracking
+  - System resource utilization
+- Implemented periodic performance logging to the console for easier debugging
+- Created a server metrics dashboard (`server-metrics.html`) with:
+  - Real-time metrics visualization
+  - Color-coded indicators for performance thresholds
+  - Auto-refreshing data with manual refresh option
+  - Uptime tracking and formatted display
+  - Visual status indicators for server health
+- Updated package.json with development scripts:
+  - Added `server:dev` script that uses nodemon for automatic restarting
+  - Added nodemon as a development dependency
+  - Preserved the existing scripts for compatibility
+
+### Challenges and Solutions:
+- **Challenge**: Adding performance monitoring without impacting server performance  
+  **Solution**: Implemented selective monitoring that excludes static asset requests
+- **Challenge**: Creating accurate response time metrics  
+  **Solution**: Used response finish events for precise timing of the full request lifecycle
+- **Challenge**: Providing useful server health metrics  
+  **Solution**: Implemented a dedicated API endpoint with comprehensive metrics data
+- **Challenge**: Making server metrics easily accessible  
+  **Solution**: Created a metrics dashboard page with real-time updates and visual indicators
+
+### Validation:
+- Verified the server starts correctly on port 3000
+- Confirmed the server successfully serves static files from the client directory
+- Tested the health metrics API endpoint with browser and curl requests
+- Confirmed the metrics dashboard shows real-time server performance data
+- Verified performance logging works as expected when requests exceed latency thresholds
+- Tested nodemon functionality to ensure automatic server restarting during development
+- Checked that server performance stays within the target range (≤10ms latency)
+
+### Next Steps:
+- Proceed to Step 10: Implement WebSocket for Multiplayer
+- Consider adding more advanced server features:
+  - Authentication system for player accounts
+  - Database integration for persistent game state
+  - Rate limiting to prevent abuse
+  - HTTPS support for secure connections
+
+### Architecture Notes:
+- The server follows RESTful design principles:
+  - Clear separation between static file serving and API endpoints
+  - Well-defined API response format
+  - Proper HTTP status codes for different scenarios
+- Performance monitoring is implemented using middleware to maintain separation of concerns
+- The metrics dashboard uses modern web techniques:
+  - Async/await for API requests
+  - Grid layout for responsive design
+  - Dynamic content updates without page reload
+
+## Step 10: Implement WebSocket for Multiplayer (Completed)
+
+Date: [Current Date]
+
+### What was accomplished:
+- Created a robust WebSocket server implementation in `server/network/websocket.js`:
+  - Implemented comprehensive connection handling with player tracking
+  - Added position data synchronization between connected clients
+  - Created ping/pong mechanism for monitoring network latency
+  - Implemented automatic timeout detection for inactive connections
+  - Added detailed logging for connection events
+- Created client-side WebSocket connection in `client/network/connection.js`:
+  - Implemented automatic reconnection with exponential backoff
+  - Added event handling for various message types
+  - Created visual indicators for connection status and latency
+  - Implemented position data sending at configured update rate
+- Created other player visualization in `client/rendering/otherPlayers.js`:
+  - Implemented color-coded vehicles for different players
+  - Added player ID display above each vehicle
+  - Created smooth interpolation for position updates
+  - Implemented wheel rotation based on speed
+- Enhanced HUD with multiplayer indicators:
+  - Added network latency display with color-coding
+  - Created player count indicator
+- Added a network health dashboard at `/network`:
+  - Created real-time WebSocket statistics display
+  - Added server performance metrics visualization
+  - Implemented interactive connected player list
+  - Added auto-refreshing data with color-coded indicators
+- Integrated WebSocket connection with the main game loop:
+  - Synchronized player vehicle positions at 30 updates/second
+  - Added efficient message handling with minimal bandwidth usage
+  - Implemented proper cleanup for disconnected players
+
+### Challenges and Solutions:
+- **Challenge**: Creating smooth movement for other players despite latency  
+  **Solution**: Implemented position interpolation with shortest-path rotation
+- **Challenge**: Efficiently tracking all connected players  
+  **Solution**: Used Map data structures for O(1) lookups and updates
+- **Challenge**: Monitoring connection health and latency  
+  **Solution**: Implemented a ping/pong system with detailed statistics tracking
+- **Challenge**: Handling reconnection gracefully  
+  **Solution**: Created exponential backoff system with automatic reconnection attempts
+- **Challenge**: Visualizing other players distinctly  
+  **Solution**: Generated unique colors based on player ID with clear identifier labels
+
+### Validation:
+- Verified WebSocket connection established between client and server
+- Confirmed player positions are properly synchronized between multiple tabs
+- Tested reconnection works after server restarts
+- Validated latency measurement through ping/pong system
+- Confirmed all players are visible with unique colors and IDs
+- Checked that the network health dashboard accurately displays statistics
+- Verified inactive connections are properly timed out
+- Tested connection status indicators correctly show current state
+- Confirmed wheels rotate based on vehicle speed for a realistic effect
+
+### Next Steps:
+- Proceed to Step 11: Implement Client-Side Prediction and Reconciliation
+- Consider adding more advanced WebSocket features:
+  - Compression for position updates to reduce bandwidth
+  - Binary data format for more efficient communication
+  - Secure WebSocket (WSS) implementation
+  - Admin commands for server management
+
+### Architecture Notes:
+- WebSocket implementation follows a modular design pattern:
+  - Server-side `WebSocketServer` class encapsulates all WebSocket handling
+  - Client-side `WebSocketConnection` class manages connection and message processing
+  - `OtherPlayersManager` handles the visualization of other players separately
+- Communication protocol uses JSON-based messaging with types for easy extensibility
+- Connection health is maintained through periodic ping messages
+- Position updates are sent at a fixed rate (30 times per second) to balance responsiveness and bandwidth

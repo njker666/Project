@@ -24,11 +24,17 @@ class HUD {
     this.createSpeedometer();
     this.createMiniMap();
     this.createMenuButton();
+    this.createMenuPanel();
     this.createCollisionFeedback();
+    
+    // Create multiplayer UI elements
+    this.createNetworkLatencyDisplay();
+    this.createPlayerCountDisplay();
     
     // Menu panel (initially hidden)
     this.menuVisible = false;
-    this.createMenuPanel();
+    
+    console.log('HUD initialized with speedometer, minimap, and menu');
   }
   
   /**
@@ -511,6 +517,50 @@ class HUD {
   }
   
   /**
+   * Create network latency display
+   * Shows the current connection latency to the server
+   */
+  createNetworkLatencyDisplay() {
+    // Create container
+    this.networkLatency = document.createElement('div');
+    this.networkLatency.id = 'network-latency';
+    this.networkLatency.style.position = 'absolute';
+    this.networkLatency.style.top = '60px';
+    this.networkLatency.style.right = '20px';
+    this.networkLatency.style.padding = '5px 10px';
+    this.networkLatency.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    this.networkLatency.style.color = '#33ff33';
+    this.networkLatency.style.borderRadius = '5px';
+    this.networkLatency.style.fontFamily = 'Arial, sans-serif';
+    this.networkLatency.style.fontSize = '14px';
+    this.networkLatency.style.fontWeight = 'bold';
+    this.networkLatency.style.display = 'none'; // Hide until connected
+    this.container.appendChild(this.networkLatency);
+  }
+  
+  /**
+   * Create player count display
+   * Shows the number of players currently in the game
+   */
+  createPlayerCountDisplay() {
+    // Create container
+    this.playerCount = document.createElement('div');
+    this.playerCount.id = 'player-count';
+    this.playerCount.style.position = 'absolute';
+    this.playerCount.style.top = '90px';
+    this.playerCount.style.right = '20px';
+    this.playerCount.style.padding = '5px 10px';
+    this.playerCount.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    this.playerCount.style.color = '#33ccff';
+    this.playerCount.style.borderRadius = '5px';
+    this.playerCount.style.fontFamily = 'Arial, sans-serif';
+    this.playerCount.style.fontSize = '14px';
+    this.playerCount.style.fontWeight = 'bold';
+    this.playerCount.textContent = 'Players: 1';
+    this.container.appendChild(this.playerCount);
+  }
+  
+  /**
    * Updates the speedometer with the current speed
    * @param {number} speed - Current speed in km/h
    */
@@ -671,6 +721,41 @@ class HUD {
   resetTripMeter() {
     this.tripDistance = 0;
     this.tripMeterDisplay.textContent = 'TRIP: 0.0 km';
+  }
+  
+  /**
+   * Update network latency display
+   * @param {number} latency - Current network latency in milliseconds
+   */
+  updateNetworkLatency(latency) {
+    if (!this.networkLatency) return;
+    
+    // Show the display if it was hidden
+    this.networkLatency.style.display = 'block';
+    
+    // Determine color based on latency
+    let color = '#33ff33'; // Green for good latency
+    
+    if (latency > 100) {
+      color = '#ff3333'; // Red for high latency
+    } else if (latency > 50) {
+      color = '#ffcc33'; // Yellow for medium latency
+    }
+    
+    // Update text and color
+    this.networkLatency.textContent = `Latency: ${latency}ms`;
+    this.networkLatency.style.color = color;
+  }
+  
+  /**
+   * Update player count display
+   * @param {number} count - Number of players currently in game
+   */
+  updatePlayerCount(count) {
+    if (!this.playerCount) return;
+    
+    // Update text
+    this.playerCount.textContent = `Players: ${count}`;
   }
 }
 

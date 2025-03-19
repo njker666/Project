@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "parcel client/index.html",
-    "build": "parcel build client/index.html"
+    "build": "parcel build client/index.html",
+    "server": "node server/server.js",
+    "server:dev": "nodemon server/server.js --watch server --watch shared"
   },
   "keywords": [
     "game",
@@ -23,6 +25,7 @@
     "ws": "^8.16.0"
   },
   "devDependencies": {
+    "nodemon": "^3.1.9",
     "parcel": "^2.12.0"
   }
 }
